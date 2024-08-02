@@ -20,14 +20,12 @@ FILE_PATH="/home/${USER,,}/.s5"
 # 随机生成密码函数
 generate_password() {
   export PASSWORD=${PASSWORD:-$(openssl rand -base64 12)}
-  echo "生成密码: $PASSWORD"
 }
 
 # 设置服务器端口函数
 set_server_port() {
   read -p "请输入服务器端口（默认 20026）: " input_port
   export SERVER_PORT="${input_port:-20026}"
-  echo "设置服务器端口: $SERVER_PORT"
 }
 
 # 下载依赖文件函数
@@ -53,7 +51,6 @@ download_dependencies() {
     if [ -e "$FILENAME" ]; then
       echo -e "\e[1;32m$FILENAME 已存在，跳过下载\e[0m"
     else
-      echo "下载文件: $URL 到 $FILENAME"
       curl -L -sS -o "$FILENAME" "$URL"
       echo -e "\e[1;32m下载 $FILENAME\e[0m"
     fi
@@ -64,13 +61,11 @@ download_dependencies() {
 
 # 生成证书函数
 generate_cert() {
-  echo "生成证书"
   openssl req -x509 -nodes -newkey ec:<(openssl ecparam -name prime256v1) -keyout "$WORKDIR/server.key" -out "$WORKDIR/server.crt" -subj "/CN=bing.com" -days 36500
 }
 
 # 生成配置文件函数
 generate_config() {
-  echo "生成配置文件"
   cat << EOF > "$WORKDIR/config.yaml"
 listen: :$SERVER_PORT
 
@@ -99,13 +94,9 @@ EOF
 # 运行下载的文件函数
 run_files() {
   if [ -e "$WORKDIR/web" ]; then
-    echo "启动 web 服务"
-    nohup "$WORKDIR/web" server "$WORKDIR/config.yaml" > "$WORKDIR/hysteria.log" 2>&1 &
+    nohup "$WORKDIR/web" server "$WORKDIR/config.yaml" >/dev/null 2>&1 &
     sleep 1
-    pgrep -x "web" > /dev/null && echo -e "\e[1;32mweb 正在运行\e[0m" || { echo -e "\e[1;35mweb 未运行，检查日志: $WORKDIR/hysteria.log\e[0m"; exit 1; }
-  else
-    echo -e "\e[1;35mweb 文件不存在\e[0m"
-    exit 1
+    echo -e "\e[1;32mweb 正在运行\e[0m"
   fi
 }
 
@@ -121,7 +112,7 @@ get_ip() {
     else
       echo -e "\e[1;35m无法获取IPv4或IPv6地址\033[0m"
       exit 1
-    }
+    fi
   fi
   echo -e "\e[1;32m本机IP: $HOST_IP\033[0m"
 }
@@ -129,7 +120,6 @@ get_ip() {
 # 获取网络信息函数
 get_ipinfo() {
   ISP=$(curl -s https://speed.cloudflare.com/meta | awk -F\" '{print $26"-"$18}' | sed -e 's/ /_/g')
-  echo "ISP 信息: $ISP"
 }
 
 # 输出配置函数
@@ -159,7 +149,6 @@ EOF
 
 # 删除临时文件函数
 cleanup() {
-  echo "清理临时文件"
   rm -rf "$WORKDIR/web" "$WORKDIR/config.yaml"
 }
 
@@ -193,38 +182,52 @@ socks5_config() {
     {
       "port": "$SOCKS5_PORT",
       "protocol": "socks",
-      "tag": "socks-in",
+      "tag": "socks",
       "settings": {
         "auth": "password",
+        "udp": false,
+        "ip": "0.0.0.0",
+        "userLevel": 0,
         "accounts": [
           {
             "user": "$SOCKS5_USER",
             "pass": "$SOCKS5_PASS"
           }
-        ],
-        "udp": false,
-        "ip": "127.0.0.1"
+        ]
       }
     }
   ],
   "outbounds": [
     {
-      "protocol": "freedom",
-      "tag": "direct"
+      "tag": "direct",
+      "protocol": "freedom"
     }
   ]
 }
 EOF
+}
 
-  # 运行 socks5
-  if [ -e "$FILE_PATH/npm" ]; then
-    echo "启动 socks5 服务"
-    chmod +x ${FILE_PATH}/npm
-    nohup ${FILE_PATH}/npm -config ${FILE_PATH}/config.json > "$FILE_PATH/socks5.log" 2>&1 &
-    sleep 1
-    pgrep -x "npm" > /dev/null && echo -e "\e[1;32msocks5 正在运行\e[0m" || { echo -e "\e[1;35msocks5 未运行，检查日志: $FILE_PATH/socks5.log\e[0m"; exit 1; }
+install_socks5() {
+  socks5_config
+  if [ ! -e "${FILE_PATH}/s5" ]; then
+    curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
   else
-    echo -e "\e[1;35msocks5 文件不存在，请检查下载和文件路径\e[0m"
+    read -p "socks5 程序已存在，是否重新下载覆盖？(Y/N 回车N)" downsocks5
+    downsocks5=${downsocks5^^} # 转换为大写
+    if [ "$downsocks5" == "Y" ];then
+      curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
+    else
+      echo "使用已存在的 socks5 程序"
+    fi
+  fi
+
+  if [ -e "${FILE_PATH}/s5" ]; then
+    chmod 777 "${FILE_PATH}/s5"
+    nohup ${FILE_PATH}/s5 -c ${FILE_PATH}/config.json >/dev/null 2>&1 &
+    sleep 2
+    pgrep -x "s5" > /dev/null && echo -e "\e[1;32ms5 正在运行\e[0m" || { echo -e "\e[1;35ms5 未运行，重试安装\e[0m"; exit 1; }
+  else
+    echo -e "\e[1;35ms5 程序不存在\e[0m"
     exit 1
   fi
 }
@@ -240,4 +243,4 @@ get_ip
 get_ipinfo
 print_config
 cleanup
-socks5_config
+install_socks5
