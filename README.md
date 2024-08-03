@@ -1,5 +1,5 @@
-# socks5-for-serv00
-Installation scripts for Socks5 on Serv00
+# socks5-hysteria2-for-serv00-ct8
+Installation scripts for Socks5 hysteria2 on Serv00 ct8
 
 ## 一键脚本
 - nohup模式
