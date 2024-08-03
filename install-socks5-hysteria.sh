@@ -7,7 +7,8 @@ echo -e "\e[32m
  \___ \| | | | |   | ' /\___ \___ \ 
   ___) | |_| | |___| . \ ___) |__) |           不要直连
  |____/ \___/ \____|_|\_\____/____/            没有售后   
- 缝合怪：cmliu 原作者们：RealNeoMan、k0baya、eooce
+ 缝合怪：天诚 原作者们：cmliu RealNeoMan、k0baya、eooce
+ 交流群:https://t.me/cncomorg
 \e[0m"
 
 # 获取当前用户名
