@@ -5,11 +5,11 @@
 - Hysteria2用UDP端口，Socks5用TCP端口
 
 ## 一键脚本
-- 推荐nohup模式
+- 推荐Socks5 hysteria2 nohup模式
 ```bash
 bash <(curl -s https://raw.githubusercontent.com/gshtwy/socks5-for-serv00/main/install-socks5-hysteria.sh)
 ```
-- pm2模式
+- Socks5 pm2模式
 ```bash
 bash <(curl -s https://raw.githubusercontent.com/gshtwy/socks5-for-serv00/main/install-socks5-pm2.sh)
 ```
