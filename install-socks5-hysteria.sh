@@ -12,13 +12,11 @@ echo -e "\e[32m
 
 # 获取当前用户名
 USER=$(whoami)
-USER_HOME="$HOME"
-WORKDIR="$USER_HOME/.nezha-agent"
-FILE_PATH="$USER_HOME/.s5"
-HYSTERIA_WORKDIR="$USER_HOME/.hysteria"
+WORKDIR="/home/${USER,,}/.nezha-agent"
+FILE_PATH="/home/${USER,,}/.s5"
 
-# 检查并创建所需的目录
-mkdir -p "$WORKDIR" "$FILE_PATH" "$HYSTERIA_WORKDIR"
+# Hysteria 路径声明
+HYSTERIA_WORKDIR="/home/${USER,,}/.hysteria"
 
 ###################################################
 
@@ -56,9 +54,8 @@ download_dependencies() {
     if [ -e "$FILENAME" ]; then
       echo -e "\e[1;32m$FILENAME 已存在，跳过下载\e[0m"
     else
-      echo -e "\e[1;32m开始下载 $FILENAME\e[0m"
       curl -L -sS -o "$FILENAME" "$URL"
-      echo -e "\e[1;32m下载完成 $FILENAME\e[0m"
+      echo -e "\e[1;32m下载 $FILENAME\e[0m"
     fi
     chmod +x $FILENAME
   done
@@ -118,7 +115,7 @@ get_ip() {
     else
       echo -e "\e[1;35m无法获取IPv4或IPv6地址\033[0m"
       exit 1
-    fi
+    fi  # 修改这里，去掉多余的 }
   fi
   echo -e "\e[1;32m本机IP: $HOST_IP\033[0m"
 }
@@ -159,7 +156,7 @@ cleanup() {
 }
 
 # 安装和配置 socks5
-socks5_config() {
+socks5_config(){
   # 提示用户输入 socks5 端口号
   read -p "请输入 socks5 端口号: " SOCKS5_PORT
 
@@ -177,7 +174,7 @@ socks5_config() {
   done
 
   # config.js 文件
-  cat > "$FILE_PATH/config.json" << EOF
+  cat > ${FILE_PATH}/config.json << EOF
 {
   "log": {
     "access": "/dev/null",
@@ -213,23 +210,23 @@ socks5_config() {
 EOF
 }
 
-install_socks5() {
+install_socks5(){
   socks5_config
-  if [ ! -e "$FILE_PATH/s5" ]; then
-    curl -L -sS -o "$FILE_PATH/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
+  if [ ! -e "${FILE_PATH}/s5" ]; then
+    curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
   else
     read -p "socks5 程序已存在，是否重新下载覆盖？(Y/N 回车N)" downsocks5
     downsocks5=${downsocks5^^} # 转换为大写
-    if [ "$downsocks5" == "Y" ]; then
-      curl -L -sS -o "$FILE_PATH/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
+    if [ "$downsocks5" == "Y" ];then
+      curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
     else
       echo "使用已存在的 socks5 程序"
     fi
   fi
 
-  if [ -e "$FILE_PATH/s5" ]; then
-    chmod 777 "$FILE_PATH/s5"
-    nohup "$FILE_PATH/s5" -c "$FILE_PATH/config.json" >/dev/null 2>&1 &
+  if [ -e "${FILE_PATH}/s5" ]; then
+    chmod 777 "${FILE_PATH}/s5"
+    nohup ${FILE_PATH}/s5 -c ${FILE_PATH}/config.json >/dev/null 2>&1 &
     sleep 1
     if pgrep -x "s5" > /dev/null; then
       echo -e "\e[1;32mSocks5 代理程序启动成功\e[0m"
@@ -243,26 +240,26 @@ install_socks5() {
 }
 
 # 安装和配置 Nezha Agent
-install_nezha() {
-  mkdir -p "$WORKDIR"
+install_nezha(){
+  mkdir -p $WORKDIR
   read -p "请输入 Nezha Dashboard 地址(如: www.nezha.com):" NEZHA_SERVER
   read -p "请输入 Nezha Dashboard RPC 端口:" NEZHA_PORT
   read -p "请输入 Nezha Agent 密钥:" NEZHA_KEY
   echo "安装和配置 Nezha Agent"
-  curl -sL https://github.com/nezhahq/agent/releases/latest/download/nezha-agent_linux_amd64.zip -o "$WORKDIR/nezha-agent.zip"
-  unzip -o "$WORKDIR/nezha-agent.zip" -d "$WORKDIR" && chmod +x "$WORKDIR/nezha-agent"
-  rm -f "$WORKDIR/nezha-agent.zip"
-  cat > "$WORKDIR/service.sh" << EOF
+  curl -sL https://github.com/nezhahq/agent/releases/latest/download/nezha-agent_linux_amd64.zip -o $WORKDIR/nezha-agent.zip
+  unzip -o $WORKDIR/nezha-agent.zip -d $WORKDIR && chmod +x $WORKDIR/nezha-agent
+  rm -f $WORKDIR/nezha-agent.zip
+  cat > $WORKDIR/service.sh << EOF
 #!/bin/bash
 if [ ! \$(pgrep -f nezha-agent) ]; then
   read -p "请输入当前服务器的名称: " NEZHA_NAME
   read -p "是否允许安装Agent时自动更新？（yes/no，默认：yes）: " AUTO_UPDATE
   [ -z "\$AUTO_UPDATE" ] && AUTO_UPDATE="yes"
-  "$WORKDIR/nezha-agent" -s "$NEZHA_SERVER:$NEZHA_PORT" -p "$NEZHA_KEY" -n "\$NEZHA_NAME" -a "\$AUTO_UPDATE" 2>&1 &
+  $WORKDIR/nezha-agent -s $NEZHA_SERVER:$NEZHA_PORT -p $NEZHA_KEY -n \$NEZHA_NAME -a \$AUTO_UPDATE 2>&1 &
 fi
 EOF
-  chmod +x "$WORKDIR/service.sh"
-  nohup "$WORKDIR/service.sh" >/dev/null 2>&1 &
+  chmod +x $WORKDIR/service.sh
+  nohup $WORKDIR/service.sh >/dev/null 2>&1 &
   echo -e "\e[1;32mNezha Agent 安装完成并启动\e[0m"
 }
 
@@ -284,7 +281,7 @@ install_hysteria() {
 add_crontab_task() {
   crontab -l > /tmp/crontab.bak
   echo "*/1 * * * * if ! pgrep -f nezha-agent; then nohup $WORKDIR/service.sh >/dev/null 2>&1 & fi" >> /tmp/crontab.bak
-  echo "*/1 * * * * if ! pgrep -x s5; then nohup $FILE_PATH/s5 -c $FILE_PATH/config.json >/dev/null 2>&1 & fi" >> /tmp/crontab.bak
+  echo "*/1 * * * * if ! pgrep -x s5; then nohup ${FILE_PATH}/s5 -c ${FILE_PATH}/config.json >/dev/null 2>&1 & fi" >> /tmp/crontab.bak
   crontab /tmp/crontab.bak
   rm /tmp/crontab.bak
   echo -e "\e[1;32mCrontab 任务添加完成\e[0m"
