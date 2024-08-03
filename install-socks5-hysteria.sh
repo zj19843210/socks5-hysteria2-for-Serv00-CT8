@@ -32,7 +32,7 @@ generate_password() {
 
 # 设置服务器端口函数
 set_server_port() {
-  read -p "请输入服务器端口（默认 20026）: " input_port
+  read -p "请输入 hysteria2 端口 (面板开放的UDP端口,默认 20026）: " input_port
   export SERVER_PORT="${input_port:-20026}"
 }
 
@@ -176,7 +176,7 @@ install_hysteria() {
 # 安装和配置 socks5
 socks5_config(){
   # 提示用户输入 socks5 端口号
-  read -p "请输入 socks5 端口号: " SOCKS5_PORT
+  read -p "请输入 socks5 端口 (面板开放的TCP端口): " SOCKS5_PORT
 
   # 提示用户输入用户名和密码
   read -p "请输入 socks5 用户名: " SOCKS5_USER
