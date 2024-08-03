@@ -58,13 +58,8 @@ download_dependencies() {
     if [[ -e "$FILENAME" ]]; then
       echo -e "\e[1;32m$FILENAME 已存在，跳过下载\e[0m"
     else
-      echo -e "\e[1;34m开始下载 $FILENAME\e[0m"
       curl -L -sS -o "$FILENAME" "$URL"
-      if [[ $? -ne 0 ]]; then
-        echo -e "\e[1;31m下载 $FILENAME 失败\e[0m"
-        exit 1
-      fi
-      echo -e "\e[1;32m下载完成 $FILENAME\e[0m"
+      echo -e "\e[1;32m下载 $FILENAME\e[0m"
     fi
     chmod +x "$FILENAME"
   done
@@ -106,14 +101,9 @@ EOF
 # 运行下载的文件函数
 run_files() {
   if [[ -e "$HYSTERIA_WORKDIR/web" ]]; then
-    echo -e "\e[1;34m启动 Hysteria 服务\e[0m"
     nohup "$HYSTERIA_WORKDIR/web" server "$HYSTERIA_WORKDIR/config.yaml" >/dev/null 2>&1 &
     sleep 1
-    if pgrep -f "hysteria-freebsd" > /dev/null; then
-      echo -e "\e[1;32mHysteria 服务已启动\e[0m"
-    else
-      echo -e "\e[1;31mHysteria 服务启动失败\e[0m"
-    fi
+    echo -e "\e[1;32mweb 正在运行\e[0m"
   fi
 }
 
@@ -129,7 +119,7 @@ get_ip() {
     else
       echo -e "\e[1;35m无法获取IPv4或IPv6地址\033[0m"
       exit 1
-    fi
+    }
   fi
   echo -e "\e[1;32m本机IP: $HOST_IP\033[0m"
 }
@@ -187,6 +177,9 @@ socks5_config(){
     fi
   done
 
+  # 确保路径存在
+  mkdir -p "$FILE_PATH"
+
   # config.js 文件
   cat > "$FILE_PATH/config.json" << EOF
 {
@@ -216,12 +209,8 @@ socks5_config(){
   ],
   "outbounds": [
     {
-      "protocol": "freedom",
       "tag": "direct",
-      "settings": {
-        "domainStrategy": "AsIs",
-        "userLevel": 0
-      }
+      "protocol": "freedom"
     }
   ]
 }
@@ -230,17 +219,15 @@ EOF
 
 install_socks5(){
   socks5_config
-
-  # 下载和安装socks5代理程序
-  if [[ -e "${FILE_PATH}/s5" ]]; then
-    echo -e "\e[1;32m${FILE_PATH}/s5 已存在，跳过下载\e[0m"
+  if [[ ! -e "${FILE_PATH}/s5" ]]; then
+    curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
   else
-    if uname -a | grep -qi "x86_64"; then
-      curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/socks5"
-    elif uname -a | grep -qi "aarch64"; then
+    read -p "socks5 程序已存在，是否重新下载覆盖？(Y/N 回车N)" downsocks5
+    downsocks5=${downsocks5^^} # 转换为大写
+    if [[ "$downsocks5" == "Y" ]]; then
       curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
     else
-      curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
+      echo "使用已存在的 socks5 程序"
     fi
   fi
   chmod +x "${FILE_PATH}/s5"
@@ -298,6 +285,7 @@ add_crontab_task() {
   echo "*/1 * * * * if ! pgrep -f nezha-agent; then nohup $WORKDIR/service.sh >/dev/null 2>&1 & fi" >> /tmp/crontab.bak
   echo "*/1 * * * * if ! pgrep -x s5; then nohup ${FILE_PATH}/s5 -c ${FILE_PATH}/config.json >/dev/null 2>&1 & fi" >> /tmp/crontab.bak
   echo "*/1 * * * * if ! pgrep -f hysteria-freebsd; then nohup $HYSTERIA_WORKDIR/web server $HYSTERIA_WORKDIR/config.yaml >/dev/null 2>&1 & fi" >> /tmp/crontab.bak
+  crontab /tmp/crontab.bak
   crontab /tmp/crontab.bak
   rm /tmp/crontab.bak
   echo -e "\e[1;32mCrontab 任务添加完成\e[0m"
