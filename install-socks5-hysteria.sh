@@ -115,7 +115,7 @@ get_ip() {
     else
       echo -e "\e[1;35m无法获取IPv4或IPv6地址\033[0m"
       exit 1
-    }
+    fi  # 修改这里，去掉多余的 }
   fi
   echo -e "\e[1;32m本机IP: $HOST_IP\033[0m"
 }
