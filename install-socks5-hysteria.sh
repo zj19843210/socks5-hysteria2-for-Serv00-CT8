@@ -12,11 +12,10 @@ echo -e "\e[32m
 
 # 获取当前用户名
 USER=$(whoami)
-WORKDIR="/home/ACTDKg/.nezha-agent"
-FILE_PATH="/home/ACTDKg/.s5"
-
-# Hysteria 路径声明
-HYSTERIA_WORKDIR="/home/ACTDKg/.hysteria"
+USER_HOME=$(readlink -f /home/$USER) # 获取标准化的用户主目录
+WORKDIR="$USER_HOME/.nezha-agent"
+FILE_PATH="$USER_HOME/.s5"
+HYSTERIA_WORKDIR="$USER_HOME/.hysteria"
 
 ###################################################
 
@@ -57,7 +56,7 @@ download_dependencies() {
       curl -L -sS -o "$FILENAME" "$URL"
       echo -e "\e[1;32m下载 $FILENAME\e[0m"
     fi
-    chmod +x $FILENAME
+    chmod +x "$FILENAME"
   done
   wait
 }
@@ -115,7 +114,7 @@ get_ip() {
     else
       echo -e "\e[1;35m无法获取IPv4或IPv6地址\033[0m"
       exit 1
-    fi  # 修改这里，去掉多余的 }
+    fi
   fi
   echo -e "\e[1;32m本机IP: $HOST_IP\033[0m"
 }
@@ -174,7 +173,7 @@ socks5_config(){
   done
 
   # config.js 文件
-  cat > ${FILE_PATH}/config.json << EOF
+  cat > "${FILE_PATH}/config.json" << EOF
 {
   "log": {
     "access": "/dev/null",
@@ -226,92 +225,50 @@ install_socks5(){
 
   if [ -e "${FILE_PATH}/s5" ]; then
     chmod 777 "${FILE_PATH}/s5"
-    nohup ${FILE_PATH}/s5 -c ${FILE_PATH}/config.json >/dev/null 2>&1 &
+    nohup "${FILE_PATH}/s5" -c "${FILE_PATH}/config.json" >/dev/null 2>&1 &
     sleep 1
-    if pgrep -x "s5" > /dev/null; then
-      echo -e "\e[1;32mSocks5 代理程序启动成功\e[0m"
-      echo -e "\e[1;33mSocks5 代理地址：\033[0m \e[1;32m$HOST_IP:$SOCKS5_PORT 用户名：$SOCKS5_USER 密码：$SOCKS5_PASS\033[0m"
-    else
-      echo -e "\e[1;31mSocks5 代理程序启动失败\033[0m"
-    fi
+    echo "socks5 正在运行"
   else
-    echo -e "\e[1;31m下载 socks5 程序失败\033[0m"
+    echo "socks5 程序下载失败"
   fi
 }
 
-# 安装和配置 Nezha Agent
-install_nezha(){
-  mkdir -p $WORKDIR
-  read -p "请输入 Nezha Dashboard 地址(如: www.nezha.com):" NEZHA_SERVER
-  read -p "请输入 Nezha Dashboard RPC 端口:" NEZHA_PORT
-  read -p "请输入 Nezha Agent 密钥:" NEZHA_KEY
-  echo "安装和配置 Nezha Agent"
-  curl -sL https://github.com/nezhahq/agent/releases/latest/download/nezha-agent_linux_amd64.zip -o $WORKDIR/nezha-agent.zip
-  unzip -o $WORKDIR/nezha-agent.zip -d $WORKDIR && chmod +x $WORKDIR/nezha-agent
-  rm -f $WORKDIR/nezha-agent.zip
-  cat > $WORKDIR/service.sh << EOF
-#!/bin/bash
-if [ ! \$(pgrep -f nezha-agent) ]; then
-  read -p "请输入当前服务器的名称: " NEZHA_NAME
-  read -p "是否允许安装Agent时自动更新？（yes/no，默认：yes）: " AUTO_UPDATE
-  [ -z "\$AUTO_UPDATE" ] && AUTO_UPDATE="yes"
-  $WORKDIR/nezha-agent -s $NEZHA_SERVER:$NEZHA_PORT -p $NEZHA_KEY -n \$NEZHA_NAME -a \$AUTO_UPDATE 2>&1 &
-fi
-EOF
-  chmod +x $WORKDIR/service.sh
-  nohup $WORKDIR/service.sh >/dev/null 2>&1 &
-  echo -e "\e[1;32mNezha Agent 安装完成并启动\e[0m"
-}
+# 确保目录存在
+mkdir -p "$WORKDIR" || { echo "创建 $WORKDIR 失败"; exit 1; }
+mkdir -p "$FILE_PATH" || { echo "创建 $FILE_PATH 失败"; exit 1; }
+mkdir -p "$HYSTERIA_WORKDIR" || { echo "创建 $HYSTERIA_WORKDIR 失败"; exit 1; }
 
-# 安装和配置 Hysteria
-install_hysteria() {
-  generate_password
-  set_server_port
-  download_dependencies
-  generate_cert
-  generate_config
-  run_files
-  get_ip
-  get_ipinfo
-  print_config
-  cleanup
-}
+# 生成随机密码
+generate_password
 
-# 添加 crontab 守护进程任务
-add_crontab_task() {
-  crontab -l > /tmp/crontab.bak
-  echo "*/1 * * * * if ! pgrep -f nezha-agent; then nohup $WORKDIR/service.sh >/dev/null 2>&1 & fi" >> /tmp/crontab.bak
-  echo "*/1 * * * * if ! pgrep -x s5; then nohup ${FILE_PATH}/s5 -c ${FILE_PATH}/config.json >/dev/null 2>&1 & fi" >> /tmp/crontab.bak
-  crontab /tmp/crontab.bak
-  rm /tmp/crontab.bak
-  echo -e "\e[1;32mCrontab 任务添加完成\e[0m"
-}
+# 设置服务器端口
+set_server_port
 
-# 主程序
-read -p "是否安装 socks5 代理？(Y/N 回车N)" install_socks5_answer
-install_socks5_answer=${install_socks5_answer^^} # 转换为大写
+# 下载依赖文件
+download_dependencies
 
-if [ "$install_socks5_answer" == "Y" ]; then
-  install_socks5
-fi
+# 生成证书
+generate_cert
 
-read -p "是否安装 Nezha Agent？(Y/N 回车N)" install_nezha_answer
-install_nezha_answer=${install_nezha_answer^^} # 转换为大写
+# 生成配置文件
+generate_config
 
-if [ "$install_nezha_answer" == "Y" ]; then
-  install_nezha
-fi
+# 运行下载的文件
+run_files
 
-read -p "是否安装 Hysteria？(Y/N 回车N)" install_hysteria_answer
-install_hysteria_answer=${install_hysteria_answer^^} # 转换为大写
+# 获取IP地址
+get_ip
 
-if [ "$install_hysteria_answer" == "Y" ]; then
-  install_hysteria
-fi
+# 获取网络信息
+get_ipinfo
 
-read -p "是否添加 crontab 任务来守护进程？(Y/N 回车N)" add_crontab_answer
-add_crontab_answer=${add_crontab_answer^^} # 转换为大写
+# 输出配置
+print_config
 
-if [ "$add_crontab_answer" == "Y" ]; then
-  add_crontab_task
-fi
+# 删除临时文件
+cleanup
+
+# 安装和配置 socks5
+install_socks5
+
+echo "安装和配置完成。"
