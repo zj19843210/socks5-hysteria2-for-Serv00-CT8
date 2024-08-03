@@ -285,29 +285,29 @@ add_crontab_task() {
 }
 
 # 主程序
-read -p "是否安装 socks5 代理？(Y/N 回车N)" install_socks5_answer
-install_socks5_answer=${install_socks5_answer^^} # 转换为大写
+read -p "是否安装 Hysteria？(Y/N 回车N)" install_hysteria_answer
+install_hysteria_answer=${install_hysteria_answer^^}
+
+if [[ "$install_hysteria_answer" == "Y" ]]; then
+  install_hysteria
+fi
+
+read -p "是否安装 Socks5 代理？(Y/N 回车N)" install_socks5_answer
+install_socks5_answer=${install_socks5_answer^^}
 
 if [[ "$install_socks5_answer" == "Y" ]]; then
   install_socks5
 fi
 
 read -p "是否安装 Nezha Agent？(Y/N 回车N)" install_nezha_answer
-install_nezha_answer=${install_nezha_answer^^} # 转换为大写
+install_nezha_answer=${install_nezha_answer^^}
 
 if [[ "$install_nezha_answer" == "Y" ]]; then
   install_nezha
 fi
 
-read -p "是否安装 Hysteria？(Y/N 回车N)" install_hysteria_answer
-install_hysteria_answer=${install_hysteria_answer^^} # 转换为大写
-
-if [[ "$install_hysteria_answer" == "Y" ]]; then
-  install_hysteria
-fi
-
 read -p "是否添加 crontab 任务来守护进程？(Y/N 回车N)" add_crontab_answer
-add_crontab_answer=${add_crontab_answer^^} # 转换为大写
+add_crontab_answer=${add_crontab_answer^^}
 
 if [[ "$add_crontab_answer" == "Y" ]]; then
   add_crontab_task
