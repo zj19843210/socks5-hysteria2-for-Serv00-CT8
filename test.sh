@@ -12,31 +12,173 @@ echo -e "\e[32m
 
 # 获取当前用户名
 USER=$(whoami)
-WORKDIR="/home/${USER,,}/.nezha-agent"
-FILE_PATH="/home/${USER,,}/.s5"
+USER_HOME=$(readlink -f /home/$USER) # 获取标准化的用户主目录
+WORKDIR="$USER_HOME/.nezha-agent"
+FILE_PATH="$USER_HOME/.s5"
+HYSTERIA_WORKDIR="$USER_HOME/.hysteria"
 
-# 检查并创建工作目录和 SOCKS5 目录
-mkdir -p "$WORKDIR"
-mkdir -p "$FILE_PATH"
+# 创建必要的目录，如果不存在
+[ ! -d "$WORKDIR" ] && mkdir -p "$WORKDIR"
+[ ! -d "$FILE_PATH" ] && mkdir -p "$FILE_PATH"
+[ ! -d "$HYSTERIA_WORKDIR" ] && mkdir -p "$HYSTERIA_WORKDIR"
 
 ###################################################
 
-# SOCKS5 配置
-socks5_config() {
-    read -p "请输入 socks5 端口号: " SOCKS5_PORT
-    read -p "请输入 socks5 用户名: " SOCKS5_USER
+# 随机生成密码函数
+generate_password() {
+  export PASSWORD=${PASSWORD:-$(openssl rand -base64 12)}
+}
 
-    while true; do
-        read -p "请输入 socks5 密码（不能包含 @ 和 :）：" SOCKS5_PASS
-        echo
-        if [[ "$SOCKS5_PASS" == *"@"* || "$SOCKS5_PASS" == *":"* ]]; then
-            echo "密码中不能包含 @ 和 : 符号，请重新输入。"
-        else
-            break
-        fi
-    done
+# 设置服务器端口函数
+set_server_port() {
+  read -p "请输入服务器端口（默认 20026）: " input_port
+  export SERVER_PORT="${input_port:-20026}"
+}
 
-    cat > ${FILE_PATH}/config.json << EOF
+# 下载依赖文件函数
+download_dependencies() {
+  ARCH=$(uname -m)
+  DOWNLOAD_DIR="$HYSTERIA_WORKDIR"
+  mkdir -p "$DOWNLOAD_DIR"
+  FILE_INFO=()
+
+  if [[ "$ARCH" == "arm" || "$ARCH" == "arm64" || "$ARCH" == "aarch64" ]]; then
+    FILE_INFO=("https://download.hysteria.network/app/latest/hysteria-freebsd-arm64 web" "https://github.com/eooce/test/releases/download/ARM/swith npm")
+  elif [[ "$ARCH" == "amd64" || "$ARCH" == "x86_64" || "$ARCH" == "x86" ]]; then
+    FILE_INFO=("https://download.hysteria.network/app/latest/hysteria-freebsd-amd64 web" "https://github.com/eooce/test/releases/download/freebsd/swith npm")
+  else
+    echo "不支持的架构: $ARCH"
+    exit 1
+  fi
+
+  for entry in "${FILE_INFO[@]}"; do
+    URL=$(echo "$entry" | cut -d ' ' -f 1)
+    NEW_FILENAME=$(echo "$entry" | cut -d ' ' -f 2)
+    FILENAME="$DOWNLOAD_DIR/$NEW_FILENAME"
+    if [[ -e "$FILENAME" ]]; then
+      echo -e "\e[1;32m$FILENAME 已存在，跳过下载\e[0m"
+    else
+      curl -L -sS -o "$FILENAME" "$URL"
+      echo -e "\e[1;32m下载 $FILENAME\e[0m"
+    fi
+    chmod +x "$FILENAME"
+  done
+  wait
+}
+
+# 生成证书函数
+generate_cert() {
+  openssl req -x509 -nodes -newkey ec:<(openssl ecparam -name prime256v1) -keyout "$HYSTERIA_WORKDIR/server.key" -out "$HYSTERIA_WORKDIR/server.crt" -subj "/CN=bing.com" -days 36500
+}
+
+# 生成配置文件函数
+generate_config() {
+  cat << EOF > "$HYSTERIA_WORKDIR/config.yaml"
+listen: :$SERVER_PORT
+
+tls:
+  cert: $HYSTERIA_WORKDIR/server.crt
+  key: $HYSTERIA_WORKDIR/server.key
+
+auth:
+  type: password
+  password: "$PASSWORD"
+
+fastOpen: true
+
+masquerade:
+  type: proxy
+  proxy:
+    url: https://bing.com
+    rewriteHost: true
+
+transport:
+  udp:
+    hopInterval: 30s
+EOF
+}
+
+# 运行下载的文件函数
+run_files() {
+  if [[ -e "$HYSTERIA_WORKDIR/web" ]]; then
+    nohup "$HYSTERIA_WORKDIR/web" server "$HYSTERIA_WORKDIR/config.yaml" >/dev/null 2>&1 &
+    sleep 1
+    echo -e "\e[1;32mweb 正在运行\e[0m"
+  fi
+}
+
+# 获取IP地址函数
+get_ip() {
+  ipv4=$(curl -s ipv4.ip.sb)
+  if [[ -n "$ipv4" ]]; then
+    HOST_IP="$ipv4"
+  else
+    ipv6=$(curl -s --max-time 1 ipv6.ip.sb)
+    if [[ -n "$ipv6" ]]; then
+      HOST_IP="$ipv6"
+    else
+      echo -e "\e[1;35m无法获取IPv4或IPv6地址\033[0m"
+      exit 1
+    fi
+  fi
+  echo -e "\e[1;32m本机IP: $HOST_IP\033[0m"
+}
+
+# 获取网络信息函数
+get_ipinfo() {
+  ISP=$(curl -s https://speed.cloudflare.com/meta | awk -F\" '{print $26"-"$18}' | sed -e 's/ /_/g')
+}
+
+# 输出配置函数
+print_config() {
+  echo -e "\e[1;32mHysteria2 安装成功\033[0m"
+  echo ""
+  echo -e "\e[1;33mV2rayN或Nekobox 配置\033[0m"
+  echo -e "\e[1;32mhysteria2://$PASSWORD@$HOST_IP:$SERVER_PORT/?sni=www.bing.com&alpn=h3&insecure=1#$ISP\033[0m"
+  echo ""
+  echo -e "\e[1;33mSurge 配置\033[0m"
+  echo -e "\e[1;32m$ISP = hysteria2, $HOST_IP, $SERVER_PORT, password = $PASSWORD, skip-cert-verify=true, sni=www.bing.com\033[0m"
+  echo ""
+  echo -e "\e[1;33mClash 配置\033[0m"
+  cat << EOF
+- name: $ISP
+  type: hysteria2
+  server: $HOST_IP
+  port: $SERVER_PORT
+  password: $PASSWORD
+  alpn:
+    - h3
+  sni: www.bing.com
+  skip-cert-verify: true
+  fast-open: true
+EOF
+}
+
+# 删除临时文件函数
+cleanup() {
+  rm -rf "$HYSTERIA_WORKDIR/web" "$HYSTERIA_WORKDIR/config.yaml"
+}
+
+# 安装和配置 socks5
+socks5_config(){
+  # 提示用户输入 socks5 端口号
+  read -p "请输入 socks5 端口号: " SOCKS5_PORT
+
+  # 提示用户输入用户名和密码
+  read -p "请输入 socks5 用户名: " SOCKS5_USER
+
+  while true; do
+    read -p "请输入 socks5 密码（不能包含@和:）：" SOCKS5_PASS
+    echo
+    if [[ "$SOCKS5_PASS" == *"@"* || "$SOCKS5_PASS" == *":"* ]]; then
+      echo "密码中不能包含@和:符号，请重新输入。"
+    else
+      break
+    fi
+  done
+
+  # config.js 文件
+  cat > "$FILE_PATH/config.json" << EOF
 {
   "log": {
     "access": "/dev/null",
@@ -72,162 +214,113 @@ socks5_config() {
 EOF
 }
 
-install_socks5() {
-    socks5_config
-    if [ ! -e "${FILE_PATH}/s5" ]; then
-        curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
-    else
-        read -p "socks5 程序已存在，是否重新下载覆盖？(Y/N 回车N)" downsocks5
-        downsocks5=${downsocks5^^} # 转换为大写
-        if [ "$downsocks5" == "Y" ]; then
-            curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
-        else
-            echo "使用已存在的 socks5 程序"
-        fi
+install_socks5(){
+  socks5_config
+  if [[ ! -e "${FILE_PATH}/s5" ]]; then
+    curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
+  else
+    read -p "socks5 程序已存在，是否重新下载覆盖？(Y/N 回车N)" downsocks5
+    downsocks5=${downsocks5^^} # 转换为大写
+    if [[ "$downsocks5" == "Y" ]]; then
+      curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
     fi
-
-    if [ -e "${FILE_PATH}/s5" ]; then
-        chmod 777 "${FILE_PATH}/s5"
-        nohup ${FILE_PATH}/s5 -c ${FILE_PATH}/config.json >/dev/null 2>&1 &
-        sleep 2
-        pgrep -x "s5" > /dev/null && echo -e "\e[1;32ms5 is running\e[0m" || { echo -e "\e[1;35ms5 is not running, restarting...\e[0m"; pkill -x "s5" && nohup "${FILE_PATH}/s5" -c ${FILE_PATH}/config.json >/dev/null 2>&1 & sleep 2; echo -e "\e[1;32ms5 restarted\e[0m"; }
-        CURL_OUTPUT=$(curl -s ip.sb --socks5 $SOCKS5_USER:$SOCKS5_PASS@localhost:$SOCKS5_PORT)
-        if [[ $CURL_OUTPUT =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "代理创建成功，返回的 IP 是: $CURL_OUTPUT"
-            echo "socks://${SOCKS5_USER}:${SOCKS5_PASS}@${CURL_OUTPUT}:${SOCKS5_PORT}"
-        else
-            echo "代理创建失败，请检查自己输入的内容。"
-        fi
-    fi
+  fi
+  chmod +x "${FILE_PATH}/s5"
+  nohup "${FILE_PATH}/s5" -c "${FILE_PATH}/config.json" >/dev/null 2>&1 &
+  sleep 1
+  if pgrep -x "s5" > /dev/null; then
+    echo -e "\e[1;32mSocks5 代理程序启动成功\e[0m"
+    echo -e "\e[1;33mSocks5 代理地址：\033[0m \e[1;32m$HOST_IP:$SOCKS5_PORT 用户名：$SOCKS5_USER 密码：$SOCKS5_PASS\033[0m"
+  else
+    echo -e "\e[1;31mSocks5 代理程序启动失败\033[0m"
+  fi
 }
 
-# Hysteria 安装
-install_hysteria() {
-    read -p "请输入 Hysteria 的监听端口: " HYST_PORT
-    read -p "请输入 Hysteria 的密码: " HYST_PASSWORD
-
-    # 下载 Hysteria
-    curl -L -o /tmp/hysteria.tar.gz "https://github.com/HyNetwork/hysteria/releases/latest/download/hysteria-linux-amd64.tar.gz"
-    mkdir -p /usr/local/bin/hysteria
-    tar -zxvf /tmp/hysteria.tar.gz -C /usr/local/bin/hysteria
-    mv /usr/local/bin/hysteria/hysteria /usr/local/bin/
-    rm -rf /tmp/hysteria.tar.gz
-
-    # 创建配置文件
-    cat > /etc/hysteria.yaml <<EOF
-server:
-  listen: :$HYST_PORT
-  allow_insecure: true
-  users:
-    - username: "user"
-      password: "$HYST_PASSWORD"
-EOF
-
-    # 启动 Hysteria
-    nohup hysteria server -config /etc/hysteria.yaml >/dev/null 2>&1 &
-    echo "Hysteria 已启动，监听端口: $HYST_PORT"
-}
-
-download_agent() {
-    DOWNLOAD_LINK="https://github.com/nezhahq/agent/releases/latest/download/nezha-agent_freebsd_amd64.zip"
-    ZIP_FILE="/tmp/nezha-agent.zip"
-    if ! wget -qO "$ZIP_FILE" "$DOWNLOAD_LINK"; then
-        echo 'error: Download failed! Please check your network or try again.'
-        return 1
-    fi
-    return 0
-}
-
-decompression() {
-    unzip "$1" -d "$WORKDIR"
-    EXIT_CODE=$?
-    if [ ${EXIT_CODE} -ne 0 ]; then
-        echo "解压失败，请检查文件或权限。"
-        exit 1
-    fi
-}
-
-install_agent() {
-    install -m 755 ${WORKDIR}/nezha-agent ${WORKDIR}/nezha-agent
-}
-
-generate_run_agent() {
-    echo "请输入 Dashboard 站点地址（IP 或域名）："
-    read -r NZ_DASHBOARD_SERVER
-    echo "请输入面板 RPC 端口："
-    read -r NZ_DASHBOARD_PORT
-    echo "请输入 Agent 密钥："
-    read -r NZ_DASHBOARD_PASSWORD
-
-    cat > ${WORKDIR}/start.sh << EOF
+# 安装和配置 Nezha Agent
+install_nezha(){
+  mkdir -p "$WORKDIR"
+  read -p "请输入 Nezha Dashboard 地址(如: www.nezha.com):" NEZHA_SERVER
+  read -p "请输入 Nezha Dashboard RPC 端口:" NEZHA_PORT
+  read -p "请输入 Nezha Agent 密钥:" NEZHA_KEY
+  echo "安装和配置 Nezha Agent"
+  curl -sL https://github.com/nezhahq/agent/releases/latest/download/nezha-agent_linux_amd64.zip -o "$WORKDIR/nezha-agent.zip"
+  unzip -o "$WORKDIR/nezha-agent.zip" -d "$WORKDIR" && chmod +x "$WORKDIR/nezha-agent"
+  rm -f "$WORKDIR/nezha-agent.zip"
+  cat > "$WORKDIR/service.sh" << EOF
 #!/bin/bash
-pgrep -f 'nezha-agent' | xargs -r kill
-cd ${WORKDIR}
-TMPDIR="${WORKDIR}" exec ${WORKDIR}/nezha-agent -s ${NZ_DASHBOARD_SERVER}:${NZ_DASHBOARD_PORT} -p ${NZ_DASHBOARD_PASSWORD} --report-delay 4 --disable-auto-update --disable-force-update >/dev/null 2>&1
+if [[ ! \$(pgrep -f nezha-agent) ]]; then
+  read -p "请输入当前服务器的名称: " NEZHA_NAME
+  read -p "是否允许安装Agent时自动更新？（yes/no，默认：yes）: " AUTO_UPDATE
+  [ -z "\$AUTO_UPDATE" ] && AUTO_UPDATE="yes"
+  "$WORKDIR/nezha-agent" -s "$NEZHA_SERVER:$NEZHA_PORT" -p "$NEZHA_KEY" -n "\$NEZHA_NAME" -a "\$AUTO_UPDATE" 2>&1 &
+fi
 EOF
-    chmod +x ${WORKDIR}/start.sh
+  chmod +x "$WORKDIR/service.sh"
+  nohup "$WORKDIR/service.sh" >/dev/null 2>&1 &
+  echo -e "\e[1;32mNezha Agent 安装完成并启动\e[0m"
 }
 
-run_agent() {
-    nohup ${WORKDIR}/start.sh >/dev/null 2>&1 &
-    sleep 3
-    if pgrep -f "nezha-agent -s" > /dev/null; then
-        echo "nezha-agent 已启动！"
-    else
-        echo "nezha-agent 启动失败，请检查参数填写是否正确。"
-    fi
+# 安装和配置 Hysteria
+install_hysteria() {
+  generate_password
+  set_server_port
+  download_dependencies
+  generate_cert
+  generate_config
+  run_files
+  get_ip
+  get_ipinfo
+  print_config
+  cleanup
 }
 
-install_nezha_agent() {
-    mkdir -p ${WORKDIR}
-    cd ${WORKDIR}
-    TMP_DIRECTORY="$(mktemp -d)"
-    ZIP_FILE="${TMP_DIRECTORY}/nezha-agent_freebsd_amd64.zip"
-
-    download_agent && decompression "${ZIP_FILE}" && install_agent
-    rm -rf "${TMP_DIRECTORY}"
-    run_agent
+# 添加 crontab 守护进程任务
+add_crontab_task() {
+  crontab -l > /tmp/crontab.bak
+  echo "*/1 * * * * if ! pgrep -f nezha-agent; then nohup $WORKDIR/service.sh >/dev/null 2>&1 & fi" >> /tmp/crontab.bak
+  echo "*/1 * * * * if ! pgrep -x s5; then nohup ${FILE_PATH}/s5 -c ${FILE_PATH}/config.json >/dev/null 2>&1 & fi" >> /tmp/crontab.bak
+  echo "*/1 * * * * if ! pgrep -x web; then nohup $HYSTERIA_WORKDIR/web server $HYSTERIA_WORKDIR/config.yaml >/dev/null 2>&1 & fi" >> /tmp/crontab.bak
+  crontab /tmp/crontab.bak
+  rm /tmp/crontab.bak
+  echo -e "\e[1;32mCrontab 任务添加完成\e[0m"
 }
 
-########################梦开始的地方###########################
+# 提示用户是否启用 gRPC 端口的 SSL/TLS 加密
+printf "是否启用针对 gRPC 端口的 SSL/TLS 加密 (--tls)，需要请按 [Y]，默认是不需要，不理解的用户可回车跳过: "
+read -r NZ_GRPC_PROXY
 
-# 安装 socks5
-read -p "是否安装 socks5 (Y/N 回车N): " socks5choice
-socks5choice=${socks5choice^^} # 转换为大写
-if [ "$socks5choice" == "Y" ]; then
-    install_socks5
+# 检查用户输入是否为 'Y'，如果是，则设置 ARGS 变量
+if echo "${NZ_GRPC_PROXY}" | grep -qiw 'Y'; then
+    ARGS='--tls'
 else
-    echo "不安装 socks5"
+    ARGS=''  # 默认不启用 SSL/TLS
 fi
 
-# 安装 Nezha Agent
-read -p "是否安装 nezha-agent (Y/N 回车N): " choice
-choice=${choice^^} # 转换为大写
-if [ "$choice" == "Y" ]; then
-    echo "正在安装 nezha-agent..."
-    install_nezha_agent
-else
-    echo "不安装 nezha-agent"
+# 主程序
+read -p "是否安装 Hysteria？(Y/N 回车N)" install_hysteria_answer
+install_hysteria_answer=${install_hysteria_answer^^}
+
+if [[ "$install_hysteria_answer" == "Y" ]]; then
+  install_hysteria
 fi
 
-# 安装 Hysteria
-read -p "是否安装 Hysteria (Y/N 回车N): " hysteria_choice
-hysteria_choice=${hysteria_choice^^} # 转换为大写
-if [ "$hysteria_choice" == "Y" ]; then
-    echo "正在安装 Hysteria..."
-    install_hysteria
-else
-    echo "不安装 Hysteria"
+read -p "是否安装 Socks5 代理？(Y/N 回车N)" install_socks5_answer
+install_socks5_answer=${install_socks5_answer^^}
+
+if [[ "$install_socks5_answer" == "Y" ]]; then
+  install_socks5
 fi
 
-# 添加 crontab
-read -p "是否添加 crontab 守护进程的计划任务 (Y/N 回车N): " crontabgogogo
-crontabgogogo=${crontabgogogo^^} # 转换为大写
-if [ "$crontabgogogo" == "Y" ]; then
-    echo "添加 crontab 守护进程的计划任务"
-    curl -s https://raw.githubusercontent.com/cmliu/socks5-for-serv00/main/check_cron.sh | bash
-else
-    echo "不添加 crontab 计划任务"
+read -p "是否安装 Nezha Agent？(Y/N 回车N)" install_nezha_answer
+install_nezha_answer=${install_nezha_answer^^}
+
+if [[ "$install_nezha_answer" == "Y" ]]; then
+  install_nezha
 fi
 
-echo "脚本执行完成。致谢：RealNeoMan、k0baya、eooce"
+read -p "是否添加 crontab 任务来守护进程？(Y/N 回车N)" add_crontab_answer
+add_crontab_answer=${add_crontab_answer^^}
+
+if [[ "$add_crontab_answer" == "Y" ]]; then
+  add_crontab_task
+fi
