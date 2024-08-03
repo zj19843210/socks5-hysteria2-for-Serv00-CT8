@@ -114,7 +114,7 @@ get_ip() {
     else
       echo -e "\e[1;35m无法获取IPv4或IPv6地址\033[0m"
       exit 1
-    }
+    fi
   fi
   echo -e "\e[1;32m本机IP: $HOST_IP\033[0m"
 }
@@ -172,9 +172,6 @@ socks5_config(){
     fi
   done
 
-  # 确保路径存在
-  mkdir -p "$FILE_PATH"
-
   # config.js 文件
   cat > "$FILE_PATH/config.json" << EOF
 {
@@ -225,14 +222,19 @@ install_socks5(){
       echo "使用已存在的 socks5 程序"
     fi
   fi
-  chmod +x "${FILE_PATH}/s5"
-  nohup "${FILE_PATH}/s5" -c "${FILE_PATH}/config.json" >/dev/null 2>&1 &
-  sleep 1
-  if pgrep -x "s5" > /dev/null; then
-    echo -e "\e[1;32mSocks5 代理程序启动成功\e[0m"
-    echo -e "\e[1;33mSocks5 代理地址：\033[0m \e[1;32m$HOST_IP:$SOCKS5_PORT 用户名：$SOCKS5_USER 密码：$SOCKS5_PASS\033[0m"
+
+  if [[ -e "${FILE_PATH}/s5" ]]; then
+    chmod 777 "${FILE_PATH}/s5"
+    nohup "${FILE_PATH}/s5" -c "${FILE_PATH}/config.json" >/dev/null 2>&1 &
+    sleep 1
+    if pgrep -x "s5" > /dev/null; then
+      echo -e "\e[1;32mSocks5 代理程序启动成功\e[0m"
+      echo -e "\e[1;33mSocks5 代理地址：\033[0m \e[1;32m$HOST_IP:$SOCKS5_PORT 用户名：$SOCKS5_USER 密码：$SOCKS5_PASS\033[0m"
+    else
+      echo -e "\e[1;31mSocks5 代理程序启动失败\033[0m"
+    fi
   else
-    echo -e "\e[1;31mSocks5 代理程序启动失败\033[0m"
+    echo -e "\e[1;31m下载 socks5 程序失败\033[0m"
   fi
 }
 
