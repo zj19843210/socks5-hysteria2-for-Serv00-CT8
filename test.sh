@@ -219,9 +219,9 @@ install_socks5(){
   if [[ ! -e "${FILE_PATH}/s5" ]]; then
     curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
   else
-    read -p "socks5 程序已存在，是否重新下载覆盖？(Y/N 回车N)" downsocks5
-    downsocks5=${downsocks5^^} # 转换为大写
-    if [[ "$downsocks5" == "Y" ]]; then
+    read -p "socks5 程序已存在，是否重新下载？(Y/N 回车N): " reinstall_socks5_answer
+    reinstall_socks5_answer=${reinstall_socks5_answer^^}
+    if [[ "$reinstall_socks5_answer" == "Y" ]]; then
       curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
     fi
   fi
