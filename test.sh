@@ -159,6 +159,19 @@ cleanup() {
   rm -rf "$HYSTERIA_WORKDIR/web" "$HYSTERIA_WORKDIR/config.yaml"
 }
 
+# 安装 Hysteria
+install_hysteria() {
+  generate_password
+  set_server_port
+  download_dependencies
+  generate_cert
+  generate_config
+  run_files
+  get_ip
+  get_ipinfo
+  print_config
+}
+
 # 安装和配置 socks5
 socks5_config(){
   # 提示用户输入 socks5 端口号
@@ -250,7 +263,7 @@ download_agent() {
 decompression() {
     unzip "$1" -d "$TMP_DIRECTORY"
     EXIT_CODE=$?
-    if [ ${EXIT_CODE} -ne 0 ]; then
+    if [ ${EXIT_CODE} -ne 0 ];then
         rm -r "$TMP_DIRECTORY"
         echo "removed: $TMP_DIRECTORY"
         exit 1
