@@ -58,12 +58,16 @@ download_dependencies() {
     if [[ -e "$FILENAME" ]]; then
       echo -e "\e[1;32m$FILENAME 已存在，跳过下载\e[0m"
     else
+      echo -e "\e[1;34m开始下载 $FILENAME\e[0m"
       curl -L -sS -o "$FILENAME" "$URL"
-      echo -e "\e[1;32m下载 $FILENAME\e[0m"
+      if [[ $? -ne 0 ]]; then
+        echo -e "\e[1;31m下载 $FILENAME 失败\e[0m"
+        exit 1
+      fi
+      echo -e "\e[1;32m下载完成 $FILENAME\e[0m"
     fi
     chmod +x "$FILENAME"
   done
-  wait
 }
 
 # 生成证书函数
@@ -101,9 +105,14 @@ EOF
 # 运行下载的文件函数
 run_files() {
   if [[ -e "$HYSTERIA_WORKDIR/web" ]]; then
+    echo -e "\e[1;34m启动 Hysteria 服务\e[0m"
     nohup "$HYSTERIA_WORKDIR/web" server "$HYSTERIA_WORKDIR/config.yaml" >/dev/null 2>&1 &
     sleep 1
-    echo -e "\e[1;32mweb 正在运行\e[0m"
+    if pgrep -f "hysteria-freebsd" > /dev/null; then
+      echo -e "\e[1;32mHysteria 服务已启动\e[0m"
+    else
+      echo -e "\e[1;31mHysteria 服务启动失败\e[0m"
+    fi
   fi
 }
 
@@ -160,7 +169,7 @@ cleanup() {
 }
 
 # 安装和配置 socks5
-socks5_config(){
+socks5_config() {
   # 提示用户输入 socks5 端口号
   read -p "请输入 socks5 端口号: " SOCKS5_PORT
 
@@ -206,22 +215,30 @@ socks5_config(){
   ],
   "outbounds": [
     {
+      "protocol": "freedom",
       "tag": "direct",
-      "protocol": "freedom"
+      "settings": {
+        "domainStrategy": "AsIs",
+        "userLevel": 0
+      }
     }
   ]
 }
 EOF
 }
 
-install_socks5(){
+install_socks5() {
   socks5_config
-  if [[ ! -e "${FILE_PATH}/s5" ]]; then
-    curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
+
+  # 下载和安装socks5代理程序
+  if [[ -e "${FILE_PATH}/s5" ]]; then
+    echo -e "\e[1;32m${FILE_PATH}/s5 已存在，跳过下载\e[0m"
   else
-    read -p "socks5 程序已存在，是否重新下载覆盖？(Y/N 回车N)" downsocks5
-    downsocks5=${downsocks5^^} # 转换为大写
-    if [[ "$downsocks5" == "Y" ]]; then
+    if uname -a | grep -qi "x86_64"; then
+      curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/socks5"
+    elif uname -a | grep -qi "aarch64"; then
+      curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
+    else
       curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
     fi
   fi
@@ -237,7 +254,7 @@ install_socks5(){
 }
 
 # 安装和配置 Nezha Agent
-install_nezha(){
+install_nezha() {
   mkdir -p "$WORKDIR"
   read -p "请输入 Nezha Dashboard 地址(如: www.nezha.com):" NEZHA_SERVER
   read -p "请输入 Nezha Dashboard RPC 端口:" NEZHA_PORT
