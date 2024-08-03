@@ -119,7 +119,7 @@ get_ip() {
     else
       echo -e "\e[1;35m无法获取IPv4或IPv6地址\033[0m"
       exit 1
-    }
+    fi
   fi
   echo -e "\e[1;32m本机IP: $HOST_IP\033[0m"
 }
@@ -280,9 +280,8 @@ generate_run_agent(){
 
     if [ -z "${NZ_DASHBOARD_SERVER}" ] || [ -z "${NZ_DASHBOARD_PASSWORD}" ]; then
         echo "error! 所有选项都不能为空"
-        return 1
         rm -rf ${WORKDIR}
-        exit
+        return 1
     fi
 
     cat > ${WORKDIR}/start.sh << EOF
