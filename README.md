@@ -1,6 +1,8 @@
 # socks5-hysteria2-for-serv00-ct8
-Installation scripts for Socks5 hysteria2 on Serv00 ct8
-CT8目前不推荐安装哪吒探针，安装探针容易封号。
+- Installation scripts for Socks5 hysteria2 on Serv00 CT8
+- CT8目前不推荐安装哪吒探针，安装探针容易封号。
+- port list 开放UDP和TCP端口
+- Hysteria2用UDP端口，Socks5用TCP端口
 
 ## 一键脚本
 - 推荐nohup模式
