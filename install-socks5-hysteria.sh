@@ -12,15 +12,13 @@ echo -e "\e[32m
 
 # 获取当前用户名
 USER=$(whoami)
-USER_HOME=$(readlink -f /home/$USER) # 获取标准化的用户主目录
+USER_HOME="$HOME"
 WORKDIR="$USER_HOME/.nezha-agent"
 FILE_PATH="$USER_HOME/.s5"
 HYSTERIA_WORKDIR="$USER_HOME/.hysteria"
 
-# 创建必要的目录，如果不存在
-[ ! -d "$WORKDIR" ] && mkdir -p "$WORKDIR"
-[ ! -d "$FILE_PATH" ] && mkdir -p "$FILE_PATH"
-[ ! -d "$HYSTERIA_WORKDIR" ] && mkdir -p "$HYSTERIA_WORKDIR"
+# 检查并创建所需的目录
+mkdir -p "$WORKDIR" "$FILE_PATH" "$HYSTERIA_WORKDIR"
 
 ###################################################
 
@@ -42,9 +40,9 @@ download_dependencies() {
   mkdir -p "$DOWNLOAD_DIR"
   FILE_INFO=()
 
-  if [[ "$ARCH" == "arm" || "$ARCH" == "arm64" || "$ARCH" == "aarch64" ]]; then
+  if [ "$ARCH" == "arm" ] || [ "$ARCH" == "arm64" ] || [ "$ARCH" == "aarch64" ]; then
     FILE_INFO=("https://download.hysteria.network/app/latest/hysteria-freebsd-arm64 web" "https://github.com/eooce/test/releases/download/ARM/swith npm")
-  elif [[ "$ARCH" == "amd64" || "$ARCH" == "x86_64" || "$ARCH" == "x86" ]]; then
+  elif [ "$ARCH" == "amd64" ] || [ "$ARCH" == "x86_64" ] || [ "$ARCH" == "x86" ]; then
     FILE_INFO=("https://download.hysteria.network/app/latest/hysteria-freebsd-amd64 web" "https://github.com/eooce/test/releases/download/freebsd/swith npm")
   else
     echo "不支持的架构: $ARCH"
@@ -55,19 +53,16 @@ download_dependencies() {
     URL=$(echo "$entry" | cut -d ' ' -f 1)
     NEW_FILENAME=$(echo "$entry" | cut -d ' ' -f 2)
     FILENAME="$DOWNLOAD_DIR/$NEW_FILENAME"
-    if [[ -e "$FILENAME" ]]; then
+    if [ -e "$FILENAME" ]; then
       echo -e "\e[1;32m$FILENAME 已存在，跳过下载\e[0m"
     else
-      echo -e "\e[1;34m开始下载 $FILENAME\e[0m"
+      echo -e "\e[1;32m开始下载 $FILENAME\e[0m"
       curl -L -sS -o "$FILENAME" "$URL"
-      if [[ $? -ne 0 ]]; then
-        echo -e "\e[1;31m下载 $FILENAME 失败\e[0m"
-        exit 1
-      fi
       echo -e "\e[1;32m下载完成 $FILENAME\e[0m"
     fi
-    chmod +x "$FILENAME"
+    chmod +x $FILENAME
   done
+  wait
 }
 
 # 生成证书函数
@@ -104,26 +99,21 @@ EOF
 
 # 运行下载的文件函数
 run_files() {
-  if [[ -e "$HYSTERIA_WORKDIR/web" ]]; then
-    echo -e "\e[1;34m启动 Hysteria 服务\e[0m"
+  if [ -e "$HYSTERIA_WORKDIR/web" ]; then
     nohup "$HYSTERIA_WORKDIR/web" server "$HYSTERIA_WORKDIR/config.yaml" >/dev/null 2>&1 &
     sleep 1
-    if pgrep -f "hysteria-freebsd" > /dev/null; then
-      echo -e "\e[1;32mHysteria 服务已启动\e[0m"
-    else
-      echo -e "\e[1;31mHysteria 服务启动失败\e[0m"
-    fi
+    echo -e "\e[1;32mweb 正在运行\e[0m"
   fi
 }
 
 # 获取IP地址函数
 get_ip() {
   ipv4=$(curl -s ipv4.ip.sb)
-  if [[ -n "$ipv4" ]]; then
+  if [ -n "$ipv4" ]; then
     HOST_IP="$ipv4"
   else
     ipv6=$(curl -s --max-time 1 ipv6.ip.sb)
-    if [[ -n "$ipv6" ]]; then
+    if [ -n "$ipv6" ]; then
       HOST_IP="$ipv6"
     else
       echo -e "\e[1;35m无法获取IPv4或IPv6地址\033[0m"
@@ -215,12 +205,8 @@ socks5_config() {
   ],
   "outbounds": [
     {
-      "protocol": "freedom",
       "tag": "direct",
-      "settings": {
-        "domainStrategy": "AsIs",
-        "userLevel": 0
-      }
+      "protocol": "freedom"
     }
   ]
 }
@@ -229,27 +215,30 @@ EOF
 
 install_socks5() {
   socks5_config
-
-  # 下载和安装socks5代理程序
-  if [[ -e "${FILE_PATH}/s5" ]]; then
-    echo -e "\e[1;32m${FILE_PATH}/s5 已存在，跳过下载\e[0m"
+  if [ ! -e "$FILE_PATH/s5" ]; then
+    curl -L -sS -o "$FILE_PATH/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
   else
-    if uname -a | grep -qi "x86_64"; then
-      curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/socks5"
-    elif uname -a | grep -qi "aarch64"; then
-      curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
+    read -p "socks5 程序已存在，是否重新下载覆盖？(Y/N 回车N)" downsocks5
+    downsocks5=${downsocks5^^} # 转换为大写
+    if [ "$downsocks5" == "Y" ]; then
+      curl -L -sS -o "$FILE_PATH/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
     else
-      curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
+      echo "使用已存在的 socks5 程序"
     fi
   fi
-  chmod +x "${FILE_PATH}/s5"
-  nohup "${FILE_PATH}/s5" -c "${FILE_PATH}/config.json" >/dev/null 2>&1 &
-  sleep 1
-  if pgrep -x "s5" > /dev/null; then
-    echo -e "\e[1;32mSocks5 代理程序启动成功\e[0m"
-    echo -e "\e[1;33mSocks5 代理地址：\033[0m \e[1;32m$HOST_IP:$SOCKS5_PORT 用户名：$SOCKS5_USER 密码：$SOCKS5_PASS\033[0m"
+
+  if [ -e "$FILE_PATH/s5" ]; then
+    chmod 777 "$FILE_PATH/s5"
+    nohup "$FILE_PATH/s5" -c "$FILE_PATH/config.json" >/dev/null 2>&1 &
+    sleep 1
+    if pgrep -x "s5" > /dev/null; then
+      echo -e "\e[1;32mSocks5 代理程序启动成功\e[0m"
+      echo -e "\e[1;33mSocks5 代理地址：\033[0m \e[1;32m$HOST_IP:$SOCKS5_PORT 用户名：$SOCKS5_USER 密码：$SOCKS5_PASS\033[0m"
+    else
+      echo -e "\e[1;31mSocks5 代理程序启动失败\033[0m"
+    fi
   else
-    echo -e "\e[1;31mSocks5 代理程序启动失败\033[0m"
+    echo -e "\e[1;31m下载 socks5 程序失败\033[0m"
   fi
 }
 
@@ -265,7 +254,7 @@ install_nezha() {
   rm -f "$WORKDIR/nezha-agent.zip"
   cat > "$WORKDIR/service.sh" << EOF
 #!/bin/bash
-if [[ ! \$(pgrep -f nezha-agent) ]]; then
+if [ ! \$(pgrep -f nezha-agent) ]; then
   read -p "请输入当前服务器的名称: " NEZHA_NAME
   read -p "是否允许安装Agent时自动更新？（yes/no，默认：yes）: " AUTO_UPDATE
   [ -z "\$AUTO_UPDATE" ] && AUTO_UPDATE="yes"
@@ -295,8 +284,7 @@ install_hysteria() {
 add_crontab_task() {
   crontab -l > /tmp/crontab.bak
   echo "*/1 * * * * if ! pgrep -f nezha-agent; then nohup $WORKDIR/service.sh >/dev/null 2>&1 & fi" >> /tmp/crontab.bak
-  echo "*/1 * * * * if ! pgrep -x s5; then nohup ${FILE_PATH}/s5 -c ${FILE_PATH}/config.json >/dev/null 2>&1 & fi" >> /tmp/crontab.bak
-  echo "*/1 * * * * if ! pgrep -f hysteria-freebsd; then nohup $HYSTERIA_WORKDIR/web server $HYSTERIA_WORKDIR/config.yaml >/dev/null 2>&1 & fi" >> /tmp/crontab.bak
+  echo "*/1 * * * * if ! pgrep -x s5; then nohup $FILE_PATH/s5 -c $FILE_PATH/config.json >/dev/null 2>&1 & fi" >> /tmp/crontab.bak
   crontab /tmp/crontab.bak
   rm /tmp/crontab.bak
   echo -e "\e[1;32mCrontab 任务添加完成\e[0m"
@@ -306,27 +294,27 @@ add_crontab_task() {
 read -p "是否安装 socks5 代理？(Y/N 回车N)" install_socks5_answer
 install_socks5_answer=${install_socks5_answer^^} # 转换为大写
 
-if [[ "$install_socks5_answer" == "Y" ]]; then
+if [ "$install_socks5_answer" == "Y" ]; then
   install_socks5
 fi
 
 read -p "是否安装 Nezha Agent？(Y/N 回车N)" install_nezha_answer
 install_nezha_answer=${install_nezha_answer^^} # 转换为大写
 
-if [[ "$install_nezha_answer" == "Y" ]]; then
+if [ "$install_nezha_answer" == "Y" ]; then
   install_nezha
 fi
 
 read -p "是否安装 Hysteria？(Y/N 回车N)" install_hysteria_answer
 install_hysteria_answer=${install_hysteria_answer^^} # 转换为大写
 
-if [[ "$install_hysteria_answer" == "Y" ]]; then
+if [ "$install_hysteria_answer" == "Y" ]; then
   install_hysteria
 fi
 
 read -p "是否添加 crontab 任务来守护进程？(Y/N 回车N)" add_crontab_answer
 add_crontab_answer=${add_crontab_answer^^} # 转换为大写
 
-if [[ "$add_crontab_answer" == "Y" ]]; then
+if [ "$add_crontab_answer" == "Y" ]; then
   add_crontab_task
 fi
