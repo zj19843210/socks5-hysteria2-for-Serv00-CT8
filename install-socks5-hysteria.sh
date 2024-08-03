@@ -12,11 +12,11 @@ echo -e "\e[32m
 
 # 获取当前用户名
 USER=$(whoami)
-WORKDIR="/home/${USER,,}/.nezha-agent"
-FILE_PATH="/home/${USER,,}/.s5"
+WORKDIR="/home/ACTDKg/.nezha-agent"
+FILE_PATH="/home/ACTDKg/.s5"
 
 # Hysteria 路径声明
-HYSTERIA_WORKDIR="/home/${USER,,}/.hysteria"
+HYSTERIA_WORKDIR="/home/ACTDKg/.hysteria"
 
 ###################################################
 
