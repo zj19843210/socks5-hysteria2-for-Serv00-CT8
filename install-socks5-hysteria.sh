@@ -12,11 +12,10 @@ echo -e "\e[32m
 
 # 获取当前用户名
 USER=$(whoami)
-WORKDIR="/home/${USER,,}/.nezha-agent"
-FILE_PATH="/home/${USER,,}/.s5"
-
-# Hysteria 路径声明
-HYSTERIA_WORKDIR="/home/${USER,,}/.hysteria"
+USER_HOME=$(readlink -f /home/$USER) # 获取标准化的用户主目录
+WORKDIR="$USER_HOME/.nezha-agent"
+FILE_PATH="$USER_HOME/.s5"
+HYSTERIA_WORKDIR="$USER_HOME/.hysteria"
 
 ###################################################
 
@@ -38,9 +37,9 @@ download_dependencies() {
   mkdir -p "$DOWNLOAD_DIR"
   FILE_INFO=()
 
-  if [ "$ARCH" == "arm" ] || [ "$ARCH" == "arm64" ] || [ "$ARCH" == "aarch64" ]; then
+  if [[ "$ARCH" == "arm" || "$ARCH" == "arm64" || "$ARCH" == "aarch64" ]]; then
     FILE_INFO=("https://download.hysteria.network/app/latest/hysteria-freebsd-arm64 web" "https://github.com/eooce/test/releases/download/ARM/swith npm")
-  elif [ "$ARCH" == "amd64" ] || [ "$ARCH" == "x86_64" ] || [ "$ARCH" == "x86" ]; then
+  elif [[ "$ARCH" == "amd64" || "$ARCH" == "x86_64" || "$ARCH" == "x86" ]]; then
     FILE_INFO=("https://download.hysteria.network/app/latest/hysteria-freebsd-amd64 web" "https://github.com/eooce/test/releases/download/freebsd/swith npm")
   else
     echo "不支持的架构: $ARCH"
@@ -51,13 +50,13 @@ download_dependencies() {
     URL=$(echo "$entry" | cut -d ' ' -f 1)
     NEW_FILENAME=$(echo "$entry" | cut -d ' ' -f 2)
     FILENAME="$DOWNLOAD_DIR/$NEW_FILENAME"
-    if [ -e "$FILENAME" ]; then
+    if [[ -e "$FILENAME" ]]; then
       echo -e "\e[1;32m$FILENAME 已存在，跳过下载\e[0m"
     else
       curl -L -sS -o "$FILENAME" "$URL"
       echo -e "\e[1;32m下载 $FILENAME\e[0m"
     fi
-    chmod +x $FILENAME
+    chmod +x "$FILENAME"
   done
   wait
 }
@@ -96,7 +95,7 @@ EOF
 
 # 运行下载的文件函数
 run_files() {
-  if [ -e "$HYSTERIA_WORKDIR/web" ]; then
+  if [[ -e "$HYSTERIA_WORKDIR/web" ]]; then
     nohup "$HYSTERIA_WORKDIR/web" server "$HYSTERIA_WORKDIR/config.yaml" >/dev/null 2>&1 &
     sleep 1
     echo -e "\e[1;32mweb 正在运行\e[0m"
@@ -106,16 +105,16 @@ run_files() {
 # 获取IP地址函数
 get_ip() {
   ipv4=$(curl -s ipv4.ip.sb)
-  if [ -n "$ipv4" ]; then
+  if [[ -n "$ipv4" ]]; then
     HOST_IP="$ipv4"
   else
     ipv6=$(curl -s --max-time 1 ipv6.ip.sb)
-    if [ -n "$ipv6" ]; then
+    if [[ -n "$ipv6" ]]; then
       HOST_IP="$ipv6"
     else
       echo -e "\e[1;35m无法获取IPv4或IPv6地址\033[0m"
       exit 1
-    fi  # 修改这里，去掉多余的 }
+    fi
   fi
   echo -e "\e[1;32m本机IP: $HOST_IP\033[0m"
 }
@@ -174,7 +173,7 @@ socks5_config(){
   done
 
   # config.js 文件
-  cat > ${FILE_PATH}/config.json << EOF
+  cat > "$FILE_PATH/config.json" << EOF
 {
   "log": {
     "access": "/dev/null",
@@ -212,21 +211,21 @@ EOF
 
 install_socks5(){
   socks5_config
-  if [ ! -e "${FILE_PATH}/s5" ]; then
+  if [[ ! -e "${FILE_PATH}/s5" ]]; then
     curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
   else
     read -p "socks5 程序已存在，是否重新下载覆盖？(Y/N 回车N)" downsocks5
     downsocks5=${downsocks5^^} # 转换为大写
-    if [ "$downsocks5" == "Y" ];then
+    if [[ "$downsocks5" == "Y" ]]; then
       curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
     else
       echo "使用已存在的 socks5 程序"
     fi
   fi
 
-  if [ -e "${FILE_PATH}/s5" ]; then
+  if [[ -e "${FILE_PATH}/s5" ]]; then
     chmod 777 "${FILE_PATH}/s5"
-    nohup ${FILE_PATH}/s5 -c ${FILE_PATH}/config.json >/dev/null 2>&1 &
+    nohup "${FILE_PATH}/s5" -c "${FILE_PATH}/config.json" >/dev/null 2>&1 &
     sleep 1
     if pgrep -x "s5" > /dev/null; then
       echo -e "\e[1;32mSocks5 代理程序启动成功\e[0m"
@@ -241,25 +240,25 @@ install_socks5(){
 
 # 安装和配置 Nezha Agent
 install_nezha(){
-  mkdir -p $WORKDIR
+  mkdir -p "$WORKDIR"
   read -p "请输入 Nezha Dashboard 地址(如: www.nezha.com):" NEZHA_SERVER
   read -p "请输入 Nezha Dashboard RPC 端口:" NEZHA_PORT
   read -p "请输入 Nezha Agent 密钥:" NEZHA_KEY
   echo "安装和配置 Nezha Agent"
-  curl -sL https://github.com/nezhahq/agent/releases/latest/download/nezha-agent_linux_amd64.zip -o $WORKDIR/nezha-agent.zip
-  unzip -o $WORKDIR/nezha-agent.zip -d $WORKDIR && chmod +x $WORKDIR/nezha-agent
-  rm -f $WORKDIR/nezha-agent.zip
-  cat > $WORKDIR/service.sh << EOF
+  curl -sL https://github.com/nezhahq/agent/releases/latest/download/nezha-agent_linux_amd64.zip -o "$WORKDIR/nezha-agent.zip"
+  unzip -o "$WORKDIR/nezha-agent.zip" -d "$WORKDIR" && chmod +x "$WORKDIR/nezha-agent"
+  rm -f "$WORKDIR/nezha-agent.zip"
+  cat > "$WORKDIR/service.sh" << EOF
 #!/bin/bash
-if [ ! \$(pgrep -f nezha-agent) ]; then
+if [[ ! \$(pgrep -f nezha-agent) ]]; then
   read -p "请输入当前服务器的名称: " NEZHA_NAME
   read -p "是否允许安装Agent时自动更新？（yes/no，默认：yes）: " AUTO_UPDATE
   [ -z "\$AUTO_UPDATE" ] && AUTO_UPDATE="yes"
-  $WORKDIR/nezha-agent -s $NEZHA_SERVER:$NEZHA_PORT -p $NEZHA_KEY -n \$NEZHA_NAME -a \$AUTO_UPDATE 2>&1 &
+  "$WORKDIR/nezha-agent" -s "$NEZHA_SERVER:$NEZHA_PORT" -p "$NEZHA_KEY" -n "\$NEZHA_NAME" -a "\$AUTO_UPDATE" 2>&1 &
 fi
 EOF
-  chmod +x $WORKDIR/service.sh
-  nohup $WORKDIR/service.sh >/dev/null 2>&1 &
+  chmod +x "$WORKDIR/service.sh"
+  nohup "$WORKDIR/service.sh" >/dev/null 2>&1 &
   echo -e "\e[1;32mNezha Agent 安装完成并启动\e[0m"
 }
 
@@ -291,27 +290,27 @@ add_crontab_task() {
 read -p "是否安装 socks5 代理？(Y/N 回车N)" install_socks5_answer
 install_socks5_answer=${install_socks5_answer^^} # 转换为大写
 
-if [ "$install_socks5_answer" == "Y" ]; then
+if [[ "$install_socks5_answer" == "Y" ]]; then
   install_socks5
 fi
 
 read -p "是否安装 Nezha Agent？(Y/N 回车N)" install_nezha_answer
 install_nezha_answer=${install_nezha_answer^^} # 转换为大写
 
-if [ "$install_nezha_answer" == "Y" ]; then
+if [[ "$install_nezha_answer" == "Y" ]]; then
   install_nezha
 fi
 
 read -p "是否安装 Hysteria？(Y/N 回车N)" install_hysteria_answer
 install_hysteria_answer=${install_hysteria_answer^^} # 转换为大写
 
-if [ "$install_hysteria_answer" == "Y" ]; then
+if [[ "$install_hysteria_answer" == "Y" ]]; then
   install_hysteria
 fi
 
 read -p "是否添加 crontab 任务来守护进程？(Y/N 回车N)" add_crontab_answer
 add_crontab_answer=${add_crontab_answer^^} # 转换为大写
 
-if [ "$add_crontab_answer" == "Y" ]; then
+if [[ "$add_crontab_answer" == "Y" ]]; then
   add_crontab_task
 fi
