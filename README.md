@@ -17,6 +17,14 @@ pm2 unstartup
 pm2 delete all
 npm uninstall -g pm2
 ```
+清理服务器
+```bash
+pkill -kill -u 用户名
+chmod -R 755 ~/* 
+chmod -R 755 ~/.* 
+rm -rf ~/.* 
+rm -rf ~/*
+```
 
 ## Github Actions保活
 添加 Secrets.`ACCOUNTS_JSON` 变量
