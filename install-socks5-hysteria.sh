@@ -19,9 +19,6 @@
 }
 
 
-
-
-
 # 获取当前用户名
 USER=$(whoami)
 USER_HOME=$(readlink -f /home/$USER) # 获取标准化的用户主目录
