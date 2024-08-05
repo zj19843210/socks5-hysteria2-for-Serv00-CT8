@@ -3,6 +3,7 @@
 - CT8目前不推荐安装哪吒探针，安装探针容易封号。
 - port list 开放UDP和TCP端口
 - Hysteria2用UDP端口，Socks5用TCP端口
+- 如果安装部署过其它脚本，请你在安装此脚本之前用下面的清理服务器命令清除一次服务器后再安装！！！！！！
 
 ## 一键脚本
 - 推荐Socks5 hysteria2 nohup模式
@@ -20,7 +21,8 @@ pm2 unstartup
 pm2 delete all
 npm uninstall -g pm2
 ```
-清理服务器
+## 清理服务器
+
 ```bash
 pkill -kill -u 用户名
 chmod -R 755 ~/* 
