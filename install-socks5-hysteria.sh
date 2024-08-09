@@ -119,7 +119,7 @@ run_files() {
 
 # 获取IP地址函数
 get_ip() {
-  ipv4=$(curl -s ipv4.ip.sb)
+  ipv4=$(curl -s 4.ipw.cn)
   if [[ -n "$ipv4" ]]; then
     HOST_IP="$ipv4"
   else
