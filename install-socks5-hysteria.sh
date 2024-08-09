@@ -123,7 +123,7 @@ get_ip() {
   if [[ -n "$ipv4" ]]; then
     HOST_IP="$ipv4"
   else
-    ipv6=$(curl -s --max-time 1 ipv6.ip.sb)
+    ipv6=$(curl -s --max-time 1 6.ipw.cn)
     if [[ -n "$ipv6" ]]; then
       HOST_IP="$ipv6"
     else
