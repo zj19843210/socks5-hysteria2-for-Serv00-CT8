@@ -1,6 +1,7 @@
 # socks5-hysteria2-for-serv00-ct8
 - 给 serv00 & ct8 机器一键安装 socks5 & hysteria2 & nezha-agent
 - CT8目前不推荐安装哪吒探针，安装探针容易封号。
+- serv00 & CT8 请勿安装PM2，安装PM2容易封号。
 - 在面板Additional servoces里打开Run your own applications为Enable
 - 在面板Port reservation里添加 Add port 开放UDP和TCP端口
 - Hysteria2用UDP端口，Socks5用TCP端口
