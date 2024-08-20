@@ -50,7 +50,8 @@ rm -rf ~/*
 - 在设置里设置Cron 触发器，设置触发时间。
 
 ## worker部署变量
-添加 ACCOUNTS_JSON 变量
+添加变量名称 ACCOUNTS_JSON 
+添加变量值，复制下面代码替换成自己的账号 密码 面板
 
 ```json
 [  
@@ -62,7 +63,8 @@ rm -rf ~/*
 ]
 ```
 
-添加 TELEGRAM_JSON 变量
+添加变量名称 TELEGRAM_JSON 
+添加变量值，复制下面代码替换成自己的TG TOKEN ID
 
 ```json
 {
