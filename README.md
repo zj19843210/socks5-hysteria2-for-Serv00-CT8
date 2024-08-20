@@ -43,8 +43,8 @@ rm -rf ~/*
   {"username": "4r885wvl", "password": "%Mg^dDMo6yIY$dZmxWNy", "panel": "panel.ct8.pl", "ssh": "s1.ct8.pl"}
 ]
 ```
-## cloudflare worker部署保活
-# cloudflare 部署步骤
+# cloudflare worker部署保活
+## cloudflare 部署步骤
 - 复制worker.js代码到cloudflare Workers保存
 - Workers里设置变量名称，添加 ACCOUNTS_JSON TELEGRAM_JSON 值，替换自己的账号 密码 面板
 - 在设置Cron 触发器，设置触发时间。
