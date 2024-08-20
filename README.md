@@ -43,6 +43,32 @@ rm -rf ~/*
   {"username": "4r885wvl", "password": "%Mg^dDMo6yIY$dZmxWNy", "panel": "panel.ct8.pl", "ssh": "s1.ct8.pl"}
 ]
 ```
+## cloudflare worker部署
+
+## worker部署变量
+添加 ACCOUNTS_JSON 变量
+
+```json
+[  
+  { "username": "serv00user1", "password": "serv00password1", "panelnum": "0", "type": "serv00" },
+  { "username": "serv00user2", "password": "serv00password2", "panelnum": "4", "type": "serv00" },
+  { "username": "serv00user3", "password": "serv00password3", "panelnum": "7", "type": "serv00" },
+  { "username": "ct8user1", "password": "ct8password1", "type": "ct8" },
+  { "username": "ct8user2", "password": "ct8password2", "type": "ct8" }
+]
+```
+
+添加 TELEGRAM_JSON 变量
+
+```json
+{
+  "telegramBotToken": "YOUR_BOT_TOKEN",
+  "telegramBotUserId": "YOUR_USER_ID"
+}
+```
+
+
+
 
 # 致谢
 [RealNeoMan](https://github.com/Neomanbeta/ct8socks)、[k0baya](https://github.com/k0baya)、[eooce](https://github.com/eooce)、[cmliu](https://github.com/cmliu)
