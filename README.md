@@ -49,7 +49,7 @@ rm -rf ~/*
 - Workers里设置变量名称，添加 ACCOUNTS_JSON TELEGRAM_JSON 值，替换自己的账号 密码 面板
 - 在设置Cron 触发器，设置触发时间。
 
-# worker部署变量
+## worker部署变量
 添加 ACCOUNTS_JSON 变量
 
 ```json
