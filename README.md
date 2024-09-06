@@ -7,8 +7,8 @@
 - Hysteria2用UDP端口，Socks5用TCP端口
 - 如果你只是为了保活登陆，serv00 ct8可以不安装任何东西，只需设置Github Actions保活
 - 如果安装部署过其它脚本，请你在安装此脚本之前用下面的清理服务器命令清除一次服务器后再安装！！！！！！
-## 🎉 来自：天诚技术交流群
-## 👥 群组：https://t.me/cncomorg
+## ⚠️ 问题反馈：天诚技术交流群
+## 👥 群组链接：https://t.me/cncomorg
 
 ## 一键脚本
 - 推荐Socks5 hysteria2 nohup模式
