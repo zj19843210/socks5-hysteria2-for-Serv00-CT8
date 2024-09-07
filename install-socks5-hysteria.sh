@@ -15,7 +15,8 @@
     echo "    _(__  ) / /_/ // /__  _  ,<   _(__  )  ____/ /        不要直连"
     echo "    /____/  \\____/ \\___/  /_/|_|  /____/  /_____/         没有售后"
     echo "缝合怪：天诚 原作者们：cmliu RealNeoMan、k0baya、eooce"
-    echo "交流群:https://t.me/cncomorg"
+    echo "Cloudflare优选IP 订阅器，每天定时发布更新。"
+    echo "欢迎加入交流群:https://t.me/cncomorg"
     echo -e "\e[0m"  
 }
 
