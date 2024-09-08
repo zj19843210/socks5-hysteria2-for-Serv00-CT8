@@ -1,18 +1,17 @@
 #!/bin/bash
 
 USER=$(whoami)
-USER_LOWER="${USER,,}"
-USER_HOME="/home/${USER_LOWER}"
+USER_HOME="/home/${USER}"
 WORKDIR="${USER_HOME}/.nezha-agent"
 FILE_PATH="${USER_HOME}/.s5"
 HYSTERIA_WORKDIR="${USER_HOME}/.hysteria"
 HYSTERIA_CONFIG="${HYSTERIA_WORKDIR}/config.yaml"  # Hysteria 配置文件路径
-CRON_S5="nohup ${FILE_PATH}/s5 -c ${FILE_PATH}/config.json >/dev/null 2>&1 &"
-CRON_NEZHA="nohup ${WORKDIR}/start.sh >/dev/null 2>&1 &"
-CRON_HYSTERIA="nohup ${HYSTERIA_WORKDIR}/hysteria-server -c $HYSTERIA_CONFIG >/dev/null 2>&1 &"  # Hysteria 启动命令
+CRON_S5="nohup ${FILE_PATH}/s5 -c ${FILE_PATH}/config.json > ${USER_HOME}/s5.log 2>&1 &"
+CRON_NEZHA="nohup ${WORKDIR}/start.sh > ${USER_HOME}/nezha.log 2>&1 &"
+CRON_HYSTERIA="nohup ${HYSTERIA_WORKDIR}/hysteria-server -c $HYSTERIA_CONFIG > ${USER_HOME}/hysteria.log 2>&1 &"  # Hysteria 启动命令
 PM2_PATH="${USER_HOME}/.npm-global/lib/node_modules/pm2/bin/pm2"
 CRON_JOB="*/12 * * * * $PM2_PATH resurrect >> ${USER_HOME}/pm2_resurrect.log 2>&1"
-REBOOT_COMMAND="@reboot pkill -kill -u $USER && $PM2_PATH resurrect >> ${USER_HOME}/pm2_resurrect.log 2>&1"
+REBOOT_COMMAND="@reboot pkill -kill -u $USER && ${CRON_S5} && ${CRON_NEZHA} && ${CRON_HYSTERIA}"
 
 echo "检查并添加 crontab 任务"
 
