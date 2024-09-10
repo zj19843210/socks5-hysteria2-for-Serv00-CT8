@@ -353,7 +353,7 @@ install_nezha_agent(){
 # 添加 crontab 守护进程任务
 add_crontab_task() {
   crontab -l > /tmp/crontab.bak
-  echo "*/12 * * * * if ! pgrep -f nezha-agent; then nohup $WORKDIR/start.sh >/dev/null 2>&1 &" >> /tmp/crontab.bak
+  echo "*/12 * * * * if ! pgrep -x nezha-agent; then nohup $WORKDIR/start.sh >/dev/null 2>&1 &" >> /tmp/crontab.bak
   echo "*/12 * * * * if ! pgrep -x s5; then nohup ${FILE_PATH}/s5 -c ${FILE_PATH}/config.json >/dev/null 2>&1 & " >> /tmp/crontab.bak
   echo "*/12 * * * * if ! pgrep -x web; then nohup $HYSTERIA_WORKDIR/web server $HYSTERIA_WORKDIR/config.yaml >/dev/null 2>&1 & " >> /tmp/crontab.bak
   crontab /tmp/crontab.bak
