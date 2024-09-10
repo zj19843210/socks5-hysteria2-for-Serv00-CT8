@@ -35,7 +35,7 @@ else
   if [ -f "${WORKDIR}/start.sh" ]; then
     echo "添加 Nezha 的 crontab 重启任务"
     add_cron_job "@reboot pkill -kill -u $USER && ${CRON_NEZHA}"
-    add_cron_job "*/12 * * * * pgrep -f \"nezha-agent\" > /dev/null || ${CRON_NEZHA}"
+    add_cron_job "*/12 * * * * pgrep -x \"nezha-agent\" > /dev/null || ${CRON_NEZHA}"
   fi
 
   # Socks5 的重启任务
