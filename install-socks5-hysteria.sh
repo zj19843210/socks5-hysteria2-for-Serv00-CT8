@@ -352,14 +352,11 @@ install_nezha_agent(){
 
 # 添加 crontab 守护进程任务
 add_crontab_task() {
-  crontab -l > /tmp/crontab.bak
-  echo "*/12 * * * * if ! pgrep -x nezha-agent; then nohup $WORKDIR/start.sh >/dev/null 2>&1 &" >> /tmp/crontab.bak
-  echo "*/12 * * * * if ! pgrep -x s5; then nohup ${FILE_PATH}/s5 -c ${FILE_PATH}/config.json >/dev/null 2>&1 & " >> /tmp/crontab.bak
-  echo "*/12 * * * * if ! pgrep -x web; then nohup $HYSTERIA_WORKDIR/web server $HYSTERIA_WORKDIR/config.yaml >/dev/null 2>&1 & " >> /tmp/crontab.bak
-  crontab /tmp/crontab.bak
-  rm /tmp/crontab.bak
+  echo -e "\e[1;33m正在添加 crontab 任务...\033[0m"
+  curl -s https://raw.githubusercontent.com/gshtwy/socks5-hysteria2-for-Serv00-CT8/main/crtest.sh | bash
   echo -e "\e[1;32mCrontab 任务添加完成\e[0m"
 }
+
 
 # 主程序
 read -p "是否安装 Hysteria？(Y/N 回车N)" install_hysteria_answer
