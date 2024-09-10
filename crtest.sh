@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # 介绍信息
 {
     echo -e "\e[92m" 
@@ -20,6 +19,7 @@
     echo "欢迎加入交流群:https://t.me/cncomorg"
     echo -e "\e[0m"  
 }
+
 
 # 获取当前用户名
 USER=$(whoami)
@@ -205,48 +205,183 @@ socks5_config(){
   cat > "$FILE_PATH/config.json" << EOF
 {
   "log": {
-    "level": "info"
+    "access": "/dev/null",
+    "error": "/dev/null",
+    "loglevel": "none"
   },
-  "server": "0.0.0.0",
-  "server_port": $SOCKS5_PORT,
-  "users": [
+  "inbounds": [
     {
-      "user": "$SOCKS5_USER",
-      "pass": "$SOCKS5_PASS"
+      "port": "$SOCKS5_PORT",
+      "protocol": "socks",
+      "tag": "socks",
+      "settings": {
+        "auth": "password",
+        "udp": false,
+        "ip": "0.0.0.0",
+        "userLevel": 0,
+        "accounts": [
+          {
+            "user": "$SOCKS5_USER",
+            "pass": "$SOCKS5_PASS"
+          }
+        ]
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "direct",
+      "protocol": "freedom"
     }
   ]
 }
 EOF
+}
 
-  # 下载并配置 s5
-  curl -s https://github.com/gshtwy/socks5-hysteria2-for-Serv00-CT8/releases/download/1.0/s5-linux-amd64.tar.gz | tar -xz -C "$FILE_PATH"
-  chmod +x "$FILE_PATH/s5"
-  nohup "$FILE_PATH/s5" -c "$FILE_PATH/config.json" >/dev/null 2>&1 &
+install_socks5(){
+  socks5_config
+  if [[ ! -e "${FILE_PATH}/s5" ]]; then
+    curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
+  else
+    read -p "socks5 程序已存在，是否重新下载？(Y/N 回车N): " reinstall_socks5_answer
+    reinstall_socks5_answer=${reinstall_socks5_answer^^}
+    if [[ "$reinstall_socks5_answer" == "Y" ]]; then
+      curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
+    fi
+  fi
+  chmod +x "${FILE_PATH}/s5"
+  nohup "${FILE_PATH}/s5" -c "${FILE_PATH}/config.json" >/dev/null 2>&1 &
+  sleep 1
+  if pgrep -x "s5" > /dev/null; then
+    echo -e "\e[1;32mSocks5 代理程序启动成功\e[0m"
+    echo -e "\e[1;33mSocks5 代理地址：\033[0m \e[1;32m$HOST_IP:$SOCKS5_PORT 用户名：$SOCKS5_USER 密码：$SOCKS5_PASS\033[0m"
+  else
+    echo -e "\e[1;31mSocks5 代理程序启动失败\033[0m"
+  fi
+}
+
+# 下载 Nezha Agent
+download_agent() {
+    DOWNLOAD_LINK="https://github.com/nezhahq/agent/releases/latest/download/nezha-agent_freebsd_amd64.zip"
+    if ! wget -qO "$ZIP_FILE" "$DOWNLOAD_LINK"; then
+        echo 'error: Download failed! Please check your network or try again.'
+        return 1
+    fi
+    return 0
+}
+
+# 解压缩 Nezha Agent
+decompression() {
+    unzip "$1" -d "$TMP_DIRECTORY"
+    EXIT_CODE=$?
+    if [ ${EXIT_CODE} -ne 0 ];then
+        rm -r "$TMP_DIRECTORY"
+        echo "removed: $TMP_DIRECTORY"
+        exit 1
+    fi
 }
 
 # 安装 Nezha Agent
-install_nezha_agent() {
-  mkdir -p "$WORKDIR"
-  curl -s https://github.com/Nezha-Project/nezha/releases/download/v1.0.0/nezha-agent-linux-amd64.tar.gz | tar -xz -C "$WORKDIR"
-  chmod +x "$WORKDIR/nezha-agent"
-  # 配置 Nezha Agent 的配置文件
-  cat << EOF > "$WORKDIR/nezha-agent.conf"
-[agent]
-name = "nezha-agent"
-addr = "https://example.com" # 请替换为 Nezha 服务器地址
-token = "your-token" # 请替换为 Nezha 服务器的 token
-EOF
+install_agent() {
+    install -m 755 ${TMP_DIRECTORY}/nezha-agent ${WORKDIR}/nezha-agent
 }
 
-# 询问用户是否添加 crontab 计划任务
-read -p "是否添加 crontab 守护进程的计划任务 (Y/N 回车N): " crontabgogogo
-crontabgogogo=${crontabgogogo^^} # 转换为大写
-if [ "$crontabgogogo" == "Y" ]; then
-  echo "添加 crontab 守护进程的计划任务"
+# 生成运行 Nezha Agent 的脚本
+generate_run_agent(){
+    echo "关于接下来需要输入的三个变量，请注意："
+    echo "Dashboard 站点地址可以写 IP 也可以写域名（域名不可套 CDN）;但是请不要加上 http:// 或者 https:// 等前缀，直接写 IP 或者域名即可；"
+    echo "面板 RPC 端口为你的 Dashboard 安装时设置的用于 Agent 接入的 RPC 端口（默认 5555）；"
+    echo "Agent 密钥需要先在管理面板上添加 Agent 获取。"
+    printf "请输入 Dashboard 站点地址："
+    read -r NZ_DASHBOARD_SERVER
+    printf "请输入面板 RPC 端口："
+    read -r NZ_DASHBOARD_PORT
+    printf "请输入 Agent 密钥: "
+    read -r NZ_DASHBOARD_PASSWORD
+    printf "是否启用针对 gRPC 端口的 SSL/TLS加密 (--tls)，需要请按 [Y]，默认是不需要，不理解的用户可回车跳过: "
+    read -r NZ_GRPC_PROXY
+    echo "${NZ_GRPC_PROXY}" | grep -qiw 'Y' && ARGS='--tls'
+
+    if [ -z "${NZ_DASHBOARD_SERVER}" ] || [ -z "${NZ_DASHBOARD_PASSWORD}" ]; then
+        echo "error! 所有选项都不能为空"
+        rm -rf ${WORKDIR}
+        return 1
+    fi
+
+    cat > ${WORKDIR}/start.sh << EOF
+#!/bin/bash
+pgrep -f 'nezha-agent' | xargs -r kill
+cd ${WORKDIR}
+TMPDIR="${WORKDIR}" exec ${WORKDIR}/nezha-agent -s ${NZ_DASHBOARD_SERVER}:${NZ_DASHBOARD_PORT} -p ${NZ_DASHBOARD_PASSWORD} --report-delay 4 --disable-auto-update --disable-force-update ${ARGS} >/dev/null 2>&1
+EOF
+    chmod +x ${WORKDIR}/start.sh
+}
+
+# 运行 Nezha Agent
+run_agent(){
+    nohup ${WORKDIR}/start.sh >/dev/null 2>&1 &
+    printf "nezha-agent已经准备就绪，请按下回车键启动\n"
+    read
+    printf "正在启动nezha-agent，请耐心等待...\n"
+    sleep 3
+    if pgrep -f "nezha-agent -s" > /dev/null; then
+        echo "nezha-agent 已启动！"
+        echo "如果面板处未上线，请检查参数是否填写正确，并停止 agent 进程，删除已安装的 agent 后重新安装！"
+        echo "停止 agent 进程的命令：pgrep -f 'nezha-agent' | xargs -r kill"
+        echo "删除已安装的 agent 的命令：rm -rf ~/.nezha-agent"
+    else
+        rm -rf "${WORKDIR}"
+        echo "nezha-agent 启动失败，请检查参数填写是否正确，并重新安装！"
+    fi
+}
+
+# 安装和配置 Nezha Agent
+install_nezha_agent(){
+  mkdir -p ${WORKDIR}
+  cd ${WORKDIR}
+  TMP_DIRECTORY="$(mktemp -d)"
+  ZIP_FILE="${TMP_DIRECTORY}/nezha-agent_freebsd_amd64.zip"
+
+  [ ! -e ${WORKDIR}/start.sh ] && generate_run_agent
+  [ ! -e ${WORKDIR}/nezha-agent ] && download_agent \
+  && decompression "${ZIP_FILE}" \
+  && install_agent
+  rm -rf "${TMP_DIRECTORY}"
+  [ -e ${WORKDIR}/start.sh ] && run_agent
+}
+
+# 添加 crontab 守护进程任务
+add_crontab_task() {
+  echo -e "\e[1;33m正在添加 crontab 任务...\033[0m"
   curl -s https://raw.githubusercontent.com/gshtwy/socks5-hysteria2-for-Serv00-CT8/main/crtest.sh | bash
-else
-  echo "不添加 crontab 计划任务"
+  echo -e "\e[1;32mCrontab 任务添加完成\e[0m"
+}
+
+# 主程序
+read -p "是否安装 Hysteria？(Y/N 回车N)" install_hysteria_answer
+install_hysteria_answer=${install_hysteria_answer^^}
+
+if [[ "$install_hysteria_answer" == "Y" ]]; then
+  install_hysteria
 fi
 
-# 完成脚本执行
-echo "脚本执行完成。致谢：RealNeoMan、k0baya、eooce cmliu"
+read -p "是否安装 Socks5 代理？(Y/N 回车N)" install_socks5_answer
+install_socks5_answer=${install_socks5_answer^^}
+
+if [[ "$install_socks5_answer" == "Y" ]]; then
+  install_socks5
+fi
+
+read -p "是否安装 Nezha Agent？(Y/N 回车N)" install_nezha_answer
+install_nezha_answer=${install_nezha_answer^^}
+
+if [[ "$install_nezha_answer" == "Y" ]]; then
+  install_nezha_agent
+fi
+
+read -p "是否添加 crontab 任务来守护进程？(Y/N 回车N)" add_crontab_answer
+add_crontab_answer=${add_crontab_answer^^}
+
+if [[ "$add_crontab_answer" == "Y" ]]; then
+  add_crontab_task
+fi
