@@ -2,7 +2,7 @@
 
 # 介绍信息
 {
-    echo -e "\e[92m" 
+    echo -e "\e[92m"
     echo "通往电脑的路不止一条，所有的信息都应该是免费的，打破电脑特权，在电脑上创造艺术和美，计算机将使生活更美好。"
     echo "    ______                   _____               _____         "
     echo "    ___  /_ _____  ____________  /______ ___________(_)______ _"
@@ -29,11 +29,11 @@ FILE_PATH="$USER_HOME/.s5"
 HYSTERIA_WORKDIR="$USER_HOME/.hysteria"
 
 # 创建必要的目录，如果不存在
-[ ! -d "$WORKDIR" ] && mkdir -p "$WORKDIR"
-[ ! -d "$FILE_PATH" ] && mkdir -p "$FILE_PATH"
-[ ! -d "$HYSTERIA_WORKDIR" ] && mkdir -p "$HYSTERIA_WORKDIR"
-
-###################################################
+create_directories() {
+  [ ! -d "$WORKDIR" ] && mkdir -p "$WORKDIR"
+  [ ! -d "$FILE_PATH" ] && mkdir -p "$FILE_PATH"
+  [ ! -d "$HYSTERIA_WORKDIR" ] && mkdir -p "$HYSTERIA_WORKDIR"
+}
 
 # 随机生成密码函数
 generate_password() {
@@ -184,124 +184,142 @@ install_hysteria() {
 }
 
 # 安装和配置 socks5
-socks5_config(){
-  # 提示用户输入 socks5 端口号
+socks5_config() {
   read -p "请输入 socks5 端口 (面板开放的TCP端口): " SOCKS5_PORT
-
-  # 提示用户输入用户名和密码
-  read -p "请输入 socks5 用户名: " SOCKS5_USER
-
-  while true; do
-    read -p "请输入 socks5 密码（不能包含@和:）：" SOCKS5_PASS
-    echo
-    if [[ "$SOCKS5_PASS" == *"@"* || "$SOCKS5_PASS" == *":"* ]]; then
-      echo -e "\e[1;31m密码不能包含 @ 和 : \e[0m"
-    else
-      break
-    fi
-  done
-
-  # 创建 Socks5 配置文件
-  cat << EOF > /etc/socks5-config.json
+  read -p "请输入 socks5 密码: " SOCKS5_PASSWORD
+  
+  cat << EOF > "$FILE_PATH/socks5-server.json"
 {
-  "log": {
-    "level": "info"
-  },
   "server": "0.0.0.0",
   "port": $SOCKS5_PORT,
-  "user": "$SOCKS5_USER",
-  "pass": "$SOCKS5_PASS"
+  "password": ["$SOCKS5_PASSWORD"],
+  "method": "aes-256-gcm",
+  "timeout": 300
 }
 EOF
 
-  # crontab 设置
-  add_crontab_task
-
-  echo -e "\e[1;32mSocks5 配置文件生成完毕，Socks5 服务将于 5 秒后启动...\e[0m"
-  sleep 5
-}
-
-# 添加 crontab 守护进程任务
-add_crontab_task() {
-  echo -e "\e[1;32m正在下载 crtest.sh 脚本...\e[0m"
-  curl -L -sS -o /tmp/crtest.sh "https://raw.githubusercontent.com/gshtwy/socks5-hysteria2-for-Serv00-CT8/main/crtest.sh"
-  if [[ $? -eq 0 ]]; then
-    echo -e "\e[1;32mcrtest.sh 脚本下载完成\e[0m"
-    chmod +x /tmp/crtest.sh
-    /tmp/crtest.sh
-    echo -e "\e[1;32mCrontab 任务添加完成\e[0m"
-  else
-    echo -e "\e[1;31mcrtest.sh 脚本下载失败，请检查网络连接。\e[0m"
+  if ! command -v ss5 &> /dev/null; then
+    echo -e "\e[1;32m正在安装 Socks5 服务器...\e[0m"
+    apt-get update
+    apt-get install -y shadowsocks-libev
   fi
-}
-
-# 安装和配置 Nezha Agent
-install_nezha_agent() {
-  echo -e "\e[1;32m开始安装 Nezha Agent...\e[0m"
-
-  # 下载 Nezha Agent
-  curl -L -sS -o /tmp/nezha-agent-linux-amd64.tar.gz "https://github.com/naiba/nezha/releases/download/v1.2.4/nezha-agent-linux-amd64.tar.gz"
-  if [[ $? -eq 0 ]]; then
-    echo -e "\e[1;32mNezha Agent 下载完成\e[0m"
-    tar -xzf /tmp/nezha-agent-linux-amd64.tar.gz -C /tmp
-    mv /tmp/nezha-agent /usr/local/bin/
-    rm -rf /tmp/nezha-agent-linux-amd64.tar.gz
-  else
-    echo -e "\e[1;31mNezha Agent 下载失败，请检查网络连接。\e[0m"
-    exit 1
-  fi
-
-  # 创建配置文件
-  read -p "请输入 Nezha Server 地址: " NEZHA_SERVER
-  read -p "请输入 Nezha Server Key: " NEZHA_KEY
-
-  cat << EOF > /etc/nezha-agent/nezha-agent.yaml
-server: $NEZHA_SERVER
-key: $NEZHA_KEY
-EOF
-
-  # 配置服务
-  cat << EOF > /etc/systemd/system/nezha-agent.service
+  
+  cat << EOF > /etc/systemd/system/socks5.service
 [Unit]
-Description=Nezha Agent
+Description=Socks5 Proxy Server
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/nezha-agent -c /etc/nezha-agent/nezha-agent.yaml
+ExecStart=/usr/bin/ss-server -c $FILE_PATH/socks5-server.json
 Restart=on-failure
-User=root
+User=$USER
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-  # 启动服务
   systemctl daemon-reload
-  systemctl enable nezha-agent
-  systemctl start nezha-agent
-
-  echo -e "\e[1;32mNezha Agent 安装完成，服务已启动。\e[0m"
+  systemctl enable socks5
+  systemctl start socks5
+  echo -e "\e[1;32mSocks5 服务器已配置为开机启动并启动\e[0m"
 }
 
-# 选择操作
-echo "选择操作:"
-echo "1. 安装 Hysteria"
-echo "2. 配置 Socks5"
-echo "3. 安装 Nezha Agent"
-read -p "请输入操作编号 (1/2/3): " choice
+# 下载 Nezha Agent
+download_agent() {
+    DOWNLOAD_LINK="https://github.com/nezhahq/agent/releases/latest/download/nezha-agent_freebsd_amd64.zip"
+    if ! wget -qO "$ZIP_FILE" "$DOWNLOAD_LINK"; then
+        echo 'error: Download failed! Please check your network or try again.'
+        return 1
+    fi
+    return 0
+}
 
-case $choice in
-  1)
-    install_hysteria
-    ;;
-  2)
-    socks5_config
-    ;;
-  3)
-    install_nezha_agent
-    ;;
-  *)
-    echo -e "\e[1;31m无效的选择，请重新运行脚本。\e[0m"
-    exit 1
-    ;;
-esac
+# 解压缩 Nezha Agent
+decompression() {
+    unzip "$1" -d "$TMP_DIRECTORY"
+    EXIT_CODE=$?
+    if [ ${EXIT_CODE} -ne 0 ];then
+        rm -r "$TMP_DIRECTORY"
+        echo "removed: $TMP_DIRECTORY"
+        exit 1
+    fi
+}
+
+# 安装 Nezha Agent
+install_agent() {
+    install -m 755 ${TMP_DIRECTORY}/nezha-agent ${WORKDIR}/nezha-agent
+}
+
+# 生成运行 Nezha Agent 的脚本
+generate_run_agent(){
+    echo "关于接下来需要输入的三个变量，请注意："
+    echo "Dashboard 站点地址可以写 IP 也可以写域名（域名不可套 CDN）;但是请不要加上 http:// 或者 https:// 等前缀，直接写 IP 或者域名即可；"
+    echo "面板 RPC 端口为你的 Dashboard 安装时设置的用于 Agent 接入的 RPC 端口（默认 5555）；"
+    echo "Agent 密钥需要先在管理面板上添加 Agent 获取。"
+    printf "请输入 Dashboard 站点地址："
+    read -r NZ_DASHBOARD_SERVER
+    printf "请输入面板 RPC 端口："
+    read -r NZ_DASHBOARD_PORT
+    printf "请输入 Agent 密钥: "
+    read -r NZ_DASHBOARD_PASSWORD
+    printf "是否启用针对 gRPC 端口的 SSL/TLS加密 (--tls)，需要请按 [Y]，默认是不需要，不理解的用户可回车跳过: "
+    read -r NZ_GRPC_PROXY
+    echo "${NZ_GRPC_PROXY}" | grep -qiw 'Y' && ARGS='--tls'
+
+    if [ -z "${NZ_DASHBOARD_SERVER}" ] || [ -z "${NZ_DASHBOARD_PASSWORD}" ]; then
+        echo "error! 所有选项都不能为空"
+        rm -rf ${WORKDIR}
+        return 1
+    fi
+
+    cat > ${WORKDIR}/start.sh << EOF
+#!/bin/bash
+pgrep -f 'nezha-agent' | xargs -r kill
+cd ${WORKDIR}
+TMPDIR="${WORKDIR}" exec ${WORKDIR}/nezha-agent -s ${NZ_DASHBOARD_SERVER}:${NZ_DASHBOARD_PORT} -p ${NZ_DASHBOARD_PASSWORD} --report-delay 4 --disable-auto-update --disable-force-update ${ARGS} >/dev/null 2>&1
+EOF
+    chmod +x ${WORKDIR}/start.sh
+}
+
+# 运行 Nezha Agent
+run_agent(){
+    nohup ${WORKDIR}/start.sh >/dev/null 2>&1 &
+    printf "nezha-agent已经准备就绪，请按下回车键启动\n"
+    read
+    printf "正在启动nezha-agent，请耐心等待...\n"
+    sleep 3
+    if pgrep -f "nezha-agent -s" > /dev/null; then
+        echo "nezha-agent 已启动！"
+        echo "如果面板处未上线，请检查参数是否填写正确，并停止 agent 进程，删除已安装的 agent 后重新安装！"
+        echo "停止 agent 进程的命令：pgrep -f 'nezha-agent' | xargs -r kill"
+        echo "删除已安装的 agent 的命令：rm -rf ~/.nezha-agent"
+    else
+        rm -rf "${WORKDIR}"
+        echo "nezha-agent 启动失败，请检查参数填写是否正确，并重新安装！"
+    fi
+}
+
+# 安装和配置 Nezha Agent
+install_nezha_agent(){
+  mkdir -p ${WORKDIR}
+  cd ${WORKDIR}
+  TMP_DIRECTORY="$(mktemp -d)"
+  ZIP_FILE="${TMP_DIRECTORY}/nezha-agent_freebsd_amd64.zip"
+
+  [ ! -e ${WORKDIR}/start.sh ] && generate_run_agent
+  [ ! -e ${WORKDIR}/nezha-agent ] && download_agent \
+  && decompression "${ZIP_FILE}" \
+  && install_agent
+  rm -rf "${TMP_DIRECTORY}"
+  [ -e ${WORKDIR}/start.sh ] && run_agent
+}
+
+# 主程序入口
+main() {
+  create_directories
+  install_hysteria
+  socks5_config
+  install_nezha_agent
+}
+
+main
