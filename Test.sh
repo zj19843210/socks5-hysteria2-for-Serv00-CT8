@@ -1,8 +1,7 @@
 #!/bin/bash
-
 # 介绍信息
 {
-    echo -e "\e[92m"
+    echo -e "\e[92m" 
     echo "通往电脑的路不止一条，所有的信息都应该是免费的，打破电脑特权，在电脑上创造艺术和美，计算机将使生活更美好。"
     echo "    ______                   _____               _____         "
     echo "    ___  /_ _____  ____________  /______ ___________(_)______ _"
@@ -21,6 +20,7 @@
     echo -e "\e[0m"  
 }
 
+
 # 获取当前用户名
 USER=$(whoami)
 USER_HOME=$(readlink -f /home/$USER) # 获取标准化的用户主目录
@@ -29,11 +29,11 @@ FILE_PATH="$USER_HOME/.s5"
 HYSTERIA_WORKDIR="$USER_HOME/.hysteria"
 
 # 创建必要的目录，如果不存在
-create_directories() {
-  [ ! -d "$WORKDIR" ] && mkdir -p "$WORKDIR"
-  [ ! -d "$FILE_PATH" ] && mkdir -p "$FILE_PATH"
-  [ ! -d "$HYSTERIA_WORKDIR" ] && mkdir -p "$HYSTERIA_WORKDIR"
-}
+[ ! -d "$WORKDIR" ] && mkdir -p "$WORKDIR"
+[ ! -d "$FILE_PATH" ] && mkdir -p "$FILE_PATH"
+[ ! -d "$HYSTERIA_WORKDIR" ] && mkdir -p "$HYSTERIA_WORKDIR"
+
+###################################################
 
 # 随机生成密码函数
 generate_password() {
@@ -184,44 +184,80 @@ install_hysteria() {
 }
 
 # 安装和配置 socks5
-socks5_config() {
+socks5_config(){
+  # 提示用户输入 socks5 端口号
   read -p "请输入 socks5 端口 (面板开放的TCP端口): " SOCKS5_PORT
-  read -p "请输入 socks5 密码: " SOCKS5_PASSWORD
-  
-  cat << EOF > "$FILE_PATH/socks5-server.json"
+
+  # 提示用户输入用户名和密码
+  read -p "请输入 socks5 用户名: " SOCKS5_USER
+
+  while true; do
+    read -p "请输入 socks5 密码（不能包含@和:）：" SOCKS5_PASS
+    echo
+    if [[ "$SOCKS5_PASS" == *"@"* || "$SOCKS5_PASS" == *":"* ]]; then
+      echo "密码中不能包含@和:符号，请重新输入。"
+    else
+      break
+    fi
+  done
+
+  # config.js 文件
+  cat > "$FILE_PATH/config.json" << EOF
 {
-  "server": "0.0.0.0",
-  "port": $SOCKS5_PORT,
-  "password": ["$SOCKS5_PASSWORD"],
-  "method": "aes-256-gcm",
-  "timeout": 300
+  "log": {
+    "access": "/dev/null",
+    "error": "/dev/null",
+    "loglevel": "none"
+  },
+  "inbounds": [
+    {
+      "port": "$SOCKS5_PORT",
+      "protocol": "socks",
+      "tag": "socks",
+      "settings": {
+        "auth": "password",
+        "udp": false,
+        "ip": "0.0.0.0",
+        "userLevel": 0,
+        "accounts": [
+          {
+            "user": "$SOCKS5_USER",
+            "pass": "$SOCKS5_PASS"
+          }
+        ]
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "direct",
+      "protocol": "freedom"
+    }
+  ]
 }
 EOF
+}
 
-  if ! command -v ss5 &> /dev/null; then
-    echo -e "\e[1;32m正在安装 Socks5 服务器...\e[0m"
-    apt-get update
-    apt-get install -y shadowsocks-libev
+install_socks5(){
+  socks5_config
+  if [[ ! -e "${FILE_PATH}/s5" ]]; then
+    curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
+  else
+    read -p "socks5 程序已存在，是否重新下载？(Y/N 回车N): " reinstall_socks5_answer
+    reinstall_socks5_answer=${reinstall_socks5_answer^^}
+    if [[ "$reinstall_socks5_answer" == "Y" ]]; then
+      curl -L -sS -o "${FILE_PATH}/s5" "https://github.com/eooce/test/releases/download/freebsd/web"
+    fi
   fi
-  
-  cat << EOF > /etc/systemd/system/socks5.service
-[Unit]
-Description=Socks5 Proxy Server
-After=network.target
-
-[Service]
-ExecStart=/usr/bin/ss-server -c $FILE_PATH/socks5-server.json
-Restart=on-failure
-User=$USER
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-  systemctl daemon-reload
-  systemctl enable socks5
-  systemctl start socks5
-  echo -e "\e[1;32mSocks5 服务器已配置为开机启动并启动\e[0m"
+  chmod +x "${FILE_PATH}/s5"
+  nohup "${FILE_PATH}/s5" -c "${FILE_PATH}/config.json" >/dev/null 2>&1 &
+  sleep 1
+  if pgrep -x "s5" > /dev/null; then
+    echo -e "\e[1;32mSocks5 代理程序启动成功\e[0m"
+    echo -e "\e[1;33mSocks5 代理地址：\033[0m \e[1;32m$HOST_IP:$SOCKS5_PORT 用户名：$SOCKS5_USER 密码：$SOCKS5_PASS\033[0m"
+  else
+    echo -e "\e[1;31mSocks5 代理程序启动失败\033[0m"
+  fi
 }
 
 # 下载 Nezha Agent
@@ -314,12 +350,39 @@ install_nezha_agent(){
   [ -e ${WORKDIR}/start.sh ] && run_agent
 }
 
-# 主程序入口
-main() {
-  create_directories
-  install_hysteria
-  socks5_config
-  install_nezha_agent
+# 添加 crontab 守护进程任务
+add_crontab_task() {
+  echo -e "\e[1;33m正在添加 crontab 任务...\033[0m"
+  curl -s https://raw.githubusercontent.com/gshtwy/socks5-hysteria2-for-Serv00-CT8/main/crtest.sh | bash
+  echo -e "\e[1;32mCrontab 任务添加完成\e[0m"
 }
 
-main
+
+# 主程序
+read -p "是否安装 Hysteria？(Y/N 回车N)" install_hysteria_answer
+install_hysteria_answer=${install_hysteria_answer^^}
+
+if [[ "$install_hysteria_answer" == "Y" ]]; then
+  install_hysteria
+fi
+
+read -p "是否安装 Socks5 代理？(Y/N 回车N)" install_socks5_answer
+install_socks5_answer=${install_socks5_answer^^}
+
+if [[ "$install_socks5_answer" == "Y" ]]; then
+  install_socks5
+fi
+
+read -p "是否安装 Nezha Agent？(Y/N 回车N)" install_nezha_answer
+install_nezha_answer=${install_nezha_answer^^}
+
+if [[ "$install_nezha_answer" == "Y" ]]; then
+  install_nezha_agent
+fi
+
+read -p "是否添加 crontab 任务来守护进程？(Y/N 回车N)" add_crontab_answer
+add_crontab_answer=${add_crontab_answer^^}
+
+if [[ "$add_crontab_answer" == "Y" ]]; then
+  add_crontab_task
+fi
